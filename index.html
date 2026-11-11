@@ -36,6 +36,8 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .perch { position: relative; width: var(--size); max-width: 100%; height: 142px; margin-bottom: -12px; --x: 0px; --w: 300px; --bw: 200px; }
 .portrait { position: absolute; bottom: -36px; left: var(--x); width: 74px; height: 104px; margin-left: -37px; z-index: 0; transition: transform .8s ease-in-out; }
 /* acting out the lines: sunk = half hidden behind the board after losing, duck = all the way down for a moment */
+.portrait { cursor: pointer; -webkit-tap-highlight-color: transparent; outline: none; }
+.portrait:focus-visible svg { filter: drop-shadow(0 0 2px var(--pen)); }
 .portrait.sunk { transform: translateY(22px); }
 .portrait.duck { transform: translateY(58px); transition-duration: .25s; }
 .perch:has(.portrait.sunk) .bubble { bottom: 56px; } /* the bubble follows the head down */
@@ -50,11 +52,13 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
   .perch.walking.running { transition: --x .6s ease-in-out; }
   .portrait.run svg { animation-duration: .2s; }
   .portrait.hop svg { animation: hop .45s ease-out 3; }
+  .portrait.poked svg { animation: poked .35s ease-out; }
   .portrait.walk svg { animation: waddle .45s ease-in-out infinite; }
   .portrait.thinking svg { animation: bob 1.2s ease-in-out infinite; }
   .bubble.pop { animation: pop .25s ease-out; }
 }
 @keyframes waddle { 25% { transform: rotate(-3deg) translateY(-3px); } 75% { transform: rotate(3deg) translateY(-3px); } }
+@keyframes poked { 25% { transform: scale(1.1, .86); } 55% { transform: scale(.94, 1.08) rotate(-3deg); } }
 @keyframes bob { 50% { transform: translateY(-5px); } }
 @keyframes hop { 40% { transform: translateY(-16px) rotate(-4deg); } 70% { transform: translateY(0) scale(1.06, .94); } }
 @keyframes pop { from { transform: scale(.94); opacity: .4; } }
@@ -71,7 +75,9 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .piece.b { background: var(--ink); box-shadow: inset -4px -5px 0 -2px rgba(255, 255, 255, .12); }
 .piece.w { background: var(--sheet); border: 2.6px solid var(--ink); }
 .sq.sel .piece { outline: 2.6px solid var(--pen); outline-offset: 3px; }
-.sq.won .piece { outline: 3px solid var(--pen); outline-offset: 3px; }
+/* the winning group gets a red pen loop drawn around it (drawLoop) */
+.win-loop { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 3; }
+.win-loop path { fill: none; stroke: var(--pen); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: draw 1s ease-in-out forwards; }
 .board.drawn .piece { opacity: .4; }
 .dot { width: 22%; height: 22%; border-radius: 45% 55% 50% 50%; background: var(--pen); pointer-events: none; }
 .ring { position: absolute; inset: 6%; border-radius: 52% 48% 50% 50% / 46% 54% 46% 54%; border: 2.6px dashed var(--pen); pointer-events: none; z-index: 2; }
@@ -133,7 +139,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
   </div>
   <section class="perch" id="perch" aria-label="튀르크">
     <p class="bubble" id="bubble" aria-live="polite"></p>
-    <div class="portrait" id="portrait"></div>
+    <div class="portrait" id="portrait" role="button" tabindex="0" aria-label="튀르크 찌르기"></div>
   </section>
   <div class="board" id="board" role="grid" aria-label="LOA 판"></div>
   <div class="controls">
@@ -179,8 +185,8 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 </dialog>
 
 <!-- bump ?v= whenever engine.js or characters.js changes: GitHub Pages may otherwise pair this page with a cached old copy -->
-<script src="engine.js?v=2"></script>
-<script src="characters.js?v=2"></script>
+<script src="engine.js?v=3"></script>
+<script src="characters.js?v=3"></script>
 <script>
 "use strict";
 const THINK_MS = 5000, PONDER_MS = 700;
@@ -434,7 +440,7 @@ function newGame() {
   clearTimeout(slowTimer); clearTimeout(chatTimer); clearTimeout(winTimer);
   if (busy && !busy.ponder && worker) { worker.terminate(); worker = null; busy = null; } // don't wait out a 5 s think
   started = false; moves = []; sel = -1;
-  portraitEl.classList.remove("sunk");
+  portraitEl.classList.remove("sunk"); clearLoop();
   state = replay();
   say("pick");
   document.getElementById("pick").hidden = false;
@@ -447,7 +453,7 @@ function start(side) {
   gameId++;
   clearTimeout(winTimer);
   human = side; started = true; moves = []; sel = -1;
-  portraitEl.classList.remove("sunk");
+  portraitEl.classList.remove("sunk"); clearLoop();
   prevP = null; mateSaid = leadSaid = doomSaid = humanNearSaid = engineNearSaid = longSaid = false;
   state = replay();
   document.getElementById("pick").hidden = true;
@@ -524,11 +530,76 @@ function render(animFrom, animTo) {
   const thinking = started && !st.over && st.stm !== human;
   portraitEl.classList.toggle("thinking", thinking);
   boardEl.classList.toggle("drawn", st.over && !st.winner);
+  if (st.over && st.winner && loopFor !== gameId) { // once per game, after the last move has landed
+    loopFor = gameId;
+    const g = gameId, won = st.won.slice();
+    setTimeout(() => { if (g === gameId) drawLoop(won); }, reduced() ? 0 : 500);
+  }
   const sh = statusText(st), se = document.getElementById("status");
   if (se.dataset.h !== sh) { se.innerHTML = sh; se.dataset.h = sh; }
   if (animFrom >= 0 && animTo >= 0 && !reduced()) hop(animFrom, animTo);
 }
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+// a hand-drawn loop around the winning group: a rounded hull of the squares, wobbled a little,
+// that runs past its starting point the way a quick pen circle does
+let loopFor = -1;
+function drawLoop(squares) {
+  const j = (k) => (Math.random() - 0.5) * k, pts = [];
+  for (const s of squares) {
+    const [cx, cy] = centre(s);
+    for (let a = 0; a < 12; a++) pts.push([cx + Math.cos(a * Math.PI / 6) * 50, cy + Math.sin(a * Math.PI / 6) * 50]);
+  }
+  pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]); // convex hull, monotone chain
+  const cross = (o, p, q) => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
+  const half = (list) => { const h = []; for (const p of list) { while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop(); h.push(p); } h.pop(); return h; };
+  let hull = half(pts).concat(half(pts.slice().reverse()));
+  // walk the hull and take 16 evenly spaced points, so the curve is round rather than a polygon; then wobble them
+  const seg = hull.map((p, i) => Math.hypot(hull[(i + 1) % hull.length][0] - p[0], hull[(i + 1) % hull.length][1] - p[1]));
+  const total = seg.reduce((x, y) => x + y, 0), even = [];
+  for (let k = 0, i = 0, acc = 0; k < 16; k++) {
+    const want = (k / 16) * total;
+    while (acc + seg[i] < want) acc += seg[i++];
+    const t = (want - acc) / seg[i], p = hull[i], q = hull[(i + 1) % hull.length];
+    even.push([p[0] + (q[0] - p[0]) * t + j(8), p[1] + (q[1] - p[1]) * t + j(8)]);
+  }
+  hull = even;
+  const n = hull.length, run = hull.concat([0, 1, 2].map((i) => [hull[i % n][0] + j(14), hull[i % n][1] + j(14)]));
+  const at = (i) => run[Math.max(0, Math.min(run.length - 1, i))];
+  let d = `M${run[0][0].toFixed(1)} ${run[0][1].toFixed(1)}`;
+  for (let i = 0; i < run.length - 1; i++) { // Catmull-Rom through the points
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += ` C${c1.map((v) => v.toFixed(1)).join(" ")} ${c2.map((v) => v.toFixed(1)).join(" ")} ${p2.map((v) => v.toFixed(1)).join(" ")}`;
+  }
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "win-loop"); svg.setAttribute("viewBox", "0 0 800 800"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = `<path pathLength="1" vector-effect="non-scaling-stroke" d="${d}"/>`;
+  boardEl.appendChild(svg);
+}
+const clearLoop = () => { for (const e of boardEl.querySelectorAll(".win-loop")) e.remove(); };
+
+/* ---------------- poking Turk ---------------- */
+let pokes = 0, pokeTimer = 0, hiding = false;
+function poke() {
+  if (hiding) return;
+  act("poked", 400);
+  clearTimeout(pokeTimer);
+  pokeTimer = setTimeout(() => { pokes = 0; }, 4000); // a pause and it forgets
+  if (portraitEl.classList.contains("sunk")) { say("pokeSunk"); return; }
+  if (portraitEl.classList.contains("thinking")) { say("pokeThinking"); return; }
+  pokes++;
+  if (pokes < 3) say("poke");
+  else if (pokes < 5) say("pokeMore");
+  else { // had enough: down behind the board for a while
+    pokes = 0; hiding = true;
+    say("pokeHide");
+    portraitEl.classList.add("duck");
+    actUntil = Date.now() + 5000;
+    setTimeout(() => { portraitEl.classList.remove("duck"); hiding = false; say("pokeBack"); }, 3000);
+  }
+}
+portraitEl.addEventListener("click", poke);
+portraitEl.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); poke(); } });
 const centre = (s) => [(s & 7) * 100 + 50, (s >> 3) * 100 + 50]; // in the 800 x 800 grid
 // the piece hops from square to square along a pencil arc, and squashes a little as it lands
 function hop(from, to) {
