@@ -107,6 +107,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .sheet li { margin-bottom: 10px; }
 .sheet .aside { display: block; color: var(--muted); font-size: 17px; }
 .sheet svg { display: block; width: 100%; max-width: 360px; margin: 6px 0 2px; }
+.sheet .record .snark { flex-basis: 100%; order: -1; margin: 0; }
 .sheet .record { margin: 14px 0 0; padding-top: 10px; border-top: 2px dashed var(--ink); font-size: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 /* a real button, big enough for a finger, but quieter than the others */
 .btn.quiet { font-size: 17px; min-height: 40px; padding: 2px 14px; color: var(--muted); border-color: var(--muted); box-shadow: 2px 3px 0 var(--muted); touch-action: manipulation; }
@@ -164,13 +165,14 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
     <li><b>무승부:</b> 한 수로 둘 다 동시에 이어지거나, 같은 국면이 같은 차례로 세 번 나오면.
       <span class="aside">나랑 비기는 것도 쉽지 않아.</span></li>
   </ol>
-  <div class="record"><span id="record"></span><button type="button" class="btn quiet" id="btn-reset">전적 지우기</button></div>
-  <p class="snark" id="reset-snark" aria-live="polite" hidden></p>
+  <div class="record"><span id="record"></span><button type="button" class="btn quiet" id="btn-reset">전적 지우기</button>
+    <p class="snark" id="reset-snark" aria-live="polite" hidden></p></div>
   <form method="dialog"><button class="btn small">알겠어</button></form>
 </dialog>
 
-<script src="engine.js"></script>
-<script src="characters.js"></script>
+<!-- bump ?v= whenever engine.js or characters.js changes: GitHub Pages may otherwise pair this page with a cached old copy -->
+<script src="engine.js?v=2"></script>
+<script src="characters.js?v=2"></script>
 <script>
 "use strict";
 const THINK_MS = 5000, PONDER_MS = 700;
@@ -223,6 +225,7 @@ const rec = Object.assign({ games: 0, turk: 0, human: 0, draws: 0, streak: 0, hs
 const saveRec = () => { rec.last = Date.now(); store.set("turk-record", rec); };
 function say(key, vars) {
   const all = TALK[key];
+  if (!all) return;
   const fresh = all.filter((x) => !recent.includes(x)); // don't repeat anything said in the last few lines
   const pool = fresh.length ? fresh : all;
   const line = pool[Math.floor(Math.random() * pool.length)];
@@ -533,10 +536,15 @@ function showRecord() {
   document.getElementById("record").textContent = `전적: 튀르크 ${rec.turk}승 · 너 ${rec.human}승 · 무승부 ${rec.draws}`;
   resetBtn.textContent = "전적 지우기"; resetBtn.dataset.armed = "";
 }
-const resetSnark = (key) => { const el = document.getElementById("reset-snark"); el.textContent = pickLine(key).replace("{w}", rec.turk).replace("{l}", rec.human); el.hidden = false; };
+function resetSnark(key) {
+  const el = document.getElementById("reset-snark");
+  el.textContent = pickLine(key).replace("{w}", rec.turk).replace("{l}", rec.human);
+  el.hidden = false;
+  resetBtn.scrollIntoView({ block: "nearest" });
+}
 let wiped = false;
 function pickLine(key) {
-  const all = TALK[key];
+  const all = TALK[key] || [""];
   return all[Math.floor(Math.random() * all.length)];
 }
 document.getElementById("btn-rules").addEventListener("click", () => {
@@ -552,8 +560,8 @@ rulesEl.addEventListener("close", () => say(wiped ? "recordResetBye" : "rulesDon
 resetBtn.addEventListener("click", () => {
   if (!rec.games) { resetSnark("recordResetEmpty"); return; }
   if (!resetBtn.dataset.armed) {
-    resetSnark(rec.human ? "recordResetAsk" : "recordResetAskZero");
     resetBtn.dataset.armed = "1"; resetBtn.textContent = "그래도 지울래";
+    resetSnark(rec.human ? "recordResetAsk" : "recordResetAskZero");
     return;
   }
   Object.assign(rec, { games: 0, turk: 0, human: 0, draws: 0, streak: 0, hstreak: 0 }); saveRec();
