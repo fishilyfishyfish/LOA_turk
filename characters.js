@@ -111,6 +111,10 @@ const TALK = {
   pokeBack: ["...아직 화났어.", "다시는 찌르지 마.", "찌른 거 전적에 적어 둘 거야."],
   pokeThinking: ["지금 생각 중이거든.", "쉿. 계산 중이야.", "찌른다고 빨리 안 둬."],
   pokeSunk: ["지금 그럴 기분 아니야.", "건드리지 마. 진 거 생각 중이야."],
+  // I pick up a piece: Turk comes over to that column and sometimes has a word (Again: picking and putting back)
+  peek: ["그거 움직이게?", "거기 말고. ...농담이야. 아마도.", "음, 그거?", "그 말 들면 뒤가 비는데.", "좋아, 그거 움직여 봐. 어디 보자.",
+         "그 말이 제일 만만해 보였어?"],
+  peekAgain: ["고민되지?", "들었다 놨다 하면 말 닳아.", "아무거나 골라. 결과는 같으니까.", "다 별로지? 나도 알아."],
   // left alone for a while it dozes off; poking wakes it
   doze: ["음냐... 다음 수는... 흑...", "zzz... 내가 이겼어... zzz", "...졸린 거 아니야. 눈 감고 수 읽는 중이야..."],
   wake: ["안 잤어.", "자는 척한 거야. 너 방심하라고.", "깜짝이야. 아, 아무것도 아니야.", "눈 감고도 너는 이겨."],

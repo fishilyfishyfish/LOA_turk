@@ -231,8 +231,8 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 </dialog>
 
 <!-- bump ?v= whenever engine.js or characters.js changes: GitHub Pages may otherwise pair this page with a cached old copy -->
-<script src="engine.js?v=4"></script>
-<script src="characters.js?v=4"></script>
+<script src="engine.js?v=5"></script>
+<script src="characters.js?v=5"></script>
 <script>
 "use strict";
 const THINK_MS = 5000, PONDER_MS = 700;
@@ -550,9 +550,20 @@ function onSquare(s) {
     const m = state.legal.find((x) => (x & 63) === sel && ((x >> 6) & 63) === s);
     if (m !== undefined) { commit(m); return; }
     sel = state.b[s] === human && state.legal.some((x) => (x & 63) === s) ? s : -1;
-    render(); return;
+    render(); if (sel >= 0) peek(sel); return;
   }
-  if (state.b[s] === human && state.legal.some((x) => (x & 63) === s)) { sel = s; render(); }
+  if (state.b[s] === human && state.legal.some((x) => (x & 63) === s)) { sel = s; render(); peek(s); }
+}
+// Turk sidles over to the column of the piece I picked up, now and then with a remark
+let picks = 0, picksPly = -1;
+function peek(s) {
+  if (picksPly !== moves.length) { picksPly = moves.length; picks = 0; }
+  picks++;
+  const c = portraitEl.classList;
+  if (hiding || c.contains("sunk")) return;
+  walkTo(((s & 7) + 0.5) / 8, 900);
+  if (picks === 3) say("peekAgain");
+  else if (picks === 1 && Math.random() < 0.35) say("peek");
 }
 
 /* ---------------- drawing ---------------- */
