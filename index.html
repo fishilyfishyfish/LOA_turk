@@ -42,7 +42,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .bubble { --l: clamp(0px, calc(var(--x) - var(--bw) / 2), calc(var(--w) - var(--bw))); position: absolute; left: var(--l); bottom: 78px; margin: 0; width: max-content; max-width: min(300px, 100%); background: var(--sheet); border: 2.4px solid var(--ink); border-radius: var(--hand); padding: 8px 14px; font-size: 19px; line-height: 1.3; transform-origin: calc(var(--x) - var(--l)) bottom; }
 .bubble::before { content: ""; position: absolute; left: clamp(20px, calc(var(--x) - var(--l)), calc(var(--bw) - 20px)); bottom: -10px; width: 17px; height: 17px; margin-left: -8px; background: var(--sheet); border-right: 2.4px solid var(--ink); border-bottom: 2.4px solid var(--ink); transform: rotate(45deg); }
 @media (prefers-reduced-motion: no-preference) {
-  .perch { transition: --x 1.8s ease-in-out; }
+  .perch.walking { transition: --x 1.8s ease-in-out; }
   .portrait.walk svg { animation: waddle .45s ease-in-out infinite; }
   .portrait.thinking svg { animation: bob 1.2s ease-in-out infinite; }
   .bubble.pop { animation: pop .25s ease-out; }
@@ -166,13 +166,15 @@ function say(key, vars) {
   recent = [line].concat(recent).slice(0, 4);
   bubbleEl.textContent = line.replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined ? vars[k] : ""));
   bubbleEl.classList.remove("pop"); void bubbleEl.offsetWidth; bubbleEl.classList.add("pop");
-  place(blobX);
+  place(blobX, portraitEl.classList.contains("walk")); // a walk in progress carries on
 }
 // Turk wanders along the top edge of the board; it stands still while thinking
 const perchEl = document.getElementById("perch");
 let blobX = 0.2, wanderTimer = 0, walkTimer = 0;
-function place(x) {
+// only a walk glides; the first placement, a new line and a resize put Turk straight where it belongs
+function place(x, walk) {
   blobX = x;
+  perchEl.classList.toggle("walking", !!walk);
   const W = perchEl.clientWidth;
   perchEl.style.setProperty("--w", W + "px");
   perchEl.style.setProperty("--bw", bubbleEl.offsetWidth + "px");
@@ -186,7 +188,7 @@ function wander() {
       portraitEl.classList.add("walk");
       clearTimeout(walkTimer);
       walkTimer = setTimeout(() => portraitEl.classList.remove("walk"), 1800);
-      place(nx);
+      place(nx, true);
     }
   }
   wanderTimer = setTimeout(wander, 2500 + Math.random() * 4000);
