@@ -95,7 +95,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 /* rules sheet: a page torn from the same sketchbook, with Turk's remarks in the margin */
 .sheet { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: auto; padding: 20px 22px 18px; background: var(--sheet); color: var(--ink); font: inherit; border: 2.6px solid var(--ink); border-radius: 18px 6px 20px 8px / 8px 20px 6px 18px; box-shadow: 5px 6px 0 var(--ink); }
 .sheet::backdrop { background: rgba(27, 27, 27, .3); }
-.sheet h2 { font-size: 30px; margin: 0; }
+.sheet h2 { font-size: 30px; margin: 0; outline: none; }
 .sheet .snark { margin: 2px 0 12px; font-size: 19px; color: var(--pen); }
 .sheet ol { margin: 0; padding-left: 24px; font-size: 19px; line-height: 1.35; }
 .sheet li { margin-bottom: 10px; }
@@ -133,7 +133,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 </main>
 
 <dialog class="sheet" id="rules" aria-labelledby="rules-title">
-  <h2 id="rules-title">규칙도 몰라?</h2>
+  <h2 id="rules-title" tabindex="-1">규칙도 몰라?</h2>
   <p class="snark" id="rules-snark"></p>
   <ol>
     <li><b>내 말을 전부 한 덩어리로 이으면 이긴다.</b> 가로, 세로, 대각선으로 붙어 있으면 이어진 거야.
@@ -159,6 +159,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
       <span class="aside">나랑 비기는 것도 쉽지 않아.</span></li>
   </ol>
   <div class="record"><span id="record"></span><button type="button" class="linkish" id="btn-reset">전적 지우기</button></div>
+  <p class="snark" id="reset-snark" aria-live="polite" hidden></p>
   <form method="dialog"><button class="btn small">알겠어</button></form>
 </dialog>
 
@@ -525,6 +526,8 @@ function showRecord() {
   document.getElementById("record").textContent = `전적: 튀르크 ${rec.turk}승 · 너 ${rec.human}승 · 무승부 ${rec.draws}`;
   resetBtn.textContent = "전적 지우기"; resetBtn.dataset.armed = "";
 }
+const resetSnark = (key) => { const el = document.getElementById("reset-snark"); el.textContent = pickLine(key).replace("{w}", rec.turk).replace("{l}", rec.human); el.hidden = false; };
+let wiped = false;
 function pickLine(key) {
   const all = TALK[key];
   return all[Math.floor(Math.random() * all.length)];
@@ -532,14 +535,23 @@ function pickLine(key) {
 document.getElementById("btn-rules").addEventListener("click", () => {
   document.getElementById("rules-snark").textContent = pickLine(rulesSeen++ ? "rulesAgain" : "rules");
   showRecord();
+  document.getElementById("reset-snark").hidden = true; wiped = false;
   if (rulesEl.showModal) rulesEl.showModal(); else rulesEl.setAttribute("open", "");
+  // showModal focuses the first button, the reset at the bottom, and scrolls there: start at the title instead
+  document.getElementById("rules-title").focus({ preventScroll: true });
+  rulesEl.scrollTop = 0;
 });
-rulesEl.addEventListener("close", () => say("rulesDone"));
+rulesEl.addEventListener("close", () => say(wiped ? "recordResetBye" : "rulesDone"));
 resetBtn.addEventListener("click", () => {
-  if (!resetBtn.dataset.armed) { resetBtn.dataset.armed = "1"; resetBtn.textContent = "진짜 지울까? 한 번 더 눌러"; return; }
+  if (!rec.games) { resetSnark("recordResetEmpty"); return; }
+  if (!resetBtn.dataset.armed) {
+    resetSnark(rec.human ? "recordResetAsk" : "recordResetAskZero");
+    resetBtn.dataset.armed = "1"; resetBtn.textContent = "그래도 지울래";
+    return;
+  }
   Object.assign(rec, { games: 0, turk: 0, human: 0, draws: 0, streak: 0, hstreak: 0 }); saveRec();
   showRecord();
-  document.getElementById("rules-snark").textContent = pickLine("recordReset");
+  resetSnark("recordReset"); wiped = true;
 });
 
 portraitEl.innerHTML = char.svg;
