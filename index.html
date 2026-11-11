@@ -67,9 +67,17 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .board.drawn .piece { opacity: .4; }
 .dot { width: 22%; height: 22%; border-radius: 45% 55% 50% 50%; background: var(--pen); pointer-events: none; }
 .ring { position: absolute; inset: 6%; border-radius: 52% 48% 50% 50% / 46% 54% 46% 54%; border: 2.6px dashed var(--pen); pointer-events: none; z-index: 2; }
-@media (prefers-reduced-motion: no-preference) { .piece.moving { transition: transform .22s cubic-bezier(.2, .7, .2, 1); } }
+/* moves, drawn like a doodle: a pencil arc from square to square, the piece hops along it,
+   and a captured piece gets scribbled out before the mover lands */
+.trail { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
+.trail path { fill: none; stroke: rgba(27, 27, 27, .45); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .35s ease-out forwards, fade .8s .9s forwards; }
+.ghost { position: absolute; width: 12.5%; height: 12.5%; display: grid; place-items: center; pointer-events: none; z-index: 2; animation: fade .3s .45s forwards; }
+.ghost svg { position: absolute; z-index: 2; inset: 8%; width: 84%; height: 84%; overflow: visible; }
+.ghost path { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 520; stroke-dashoffset: 520; animation: draw .4s ease-out forwards; } /* 520: a bit over the zigzag's length */
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes fade { to { opacity: 0; transform: scale(.85); } }
 
-.bar { width: var(--size); max-width: 100%; min-height: 26px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bar { width: var(--size); max-width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .status { font-size: 21px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .chip { width: 14px; height: 14px; border-radius: 48% 52% 46% 54%; display: inline-block; }
 .chip.b { background: var(--ink); }
@@ -82,6 +90,21 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .btn:hover { transform: translate(-1px, -1px) rotate(-1deg); box-shadow: 4px 5px 0 var(--ink); }
 .btn:active { transform: translate(2px, 3px); box-shadow: 1px 1px 0 var(--ink); }
 .btn:focus-visible { outline: 2.6px dashed var(--pen); outline-offset: 5px; }
+.btn.small { font-size: 18px; padding: 1px 14px; box-shadow: 2px 3px 0 var(--ink); }
+
+/* rules sheet: a page torn from the same sketchbook, with Turk's remarks in the margin */
+.sheet { width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 40px); overflow: auto; padding: 20px 22px 18px; background: var(--sheet); color: var(--ink); font: inherit; border: 2.6px solid var(--ink); border-radius: 18px 6px 20px 8px / 8px 20px 6px 18px; box-shadow: 5px 6px 0 var(--ink); }
+.sheet::backdrop { background: rgba(27, 27, 27, .3); }
+.sheet h2 { font-size: 30px; margin: 0; }
+.sheet .snark { margin: 2px 0 12px; font-size: 19px; color: var(--pen); }
+.sheet ol { margin: 0; padding-left: 24px; font-size: 19px; line-height: 1.35; }
+.sheet li { margin-bottom: 10px; }
+.sheet .aside { display: block; color: var(--muted); font-size: 17px; }
+.sheet .aside::before { content: "튀르크: "; font-weight: 700; }
+.sheet svg { display: block; width: 100%; max-width: 360px; margin: 6px 0 2px; }
+.sheet .record { margin: 14px 0 0; padding-top: 10px; border-top: 2px dashed var(--ink); font-size: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.linkish { font: inherit; font-size: 16px; color: var(--muted); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+.sheet form { display: flex; justify-content: flex-end; margin-top: 14px; }
 @media (max-width: 420px) {
   .bubble { font-size: 18px; }
 }
@@ -91,6 +114,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 <main class="stage" id="stage">
   <div class="bar">
     <div class="status" id="status" aria-live="polite"></div>
+    <button type="button" class="btn small" id="btn-rules">규칙</button>
   </div>
   <section class="perch" id="perch" aria-label="튀르크">
     <p class="bubble" id="bubble" aria-live="polite"></p>
@@ -107,6 +131,36 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
     <button type="button" class="btn" id="btn-new" hidden>새 게임</button>
   </div>
 </main>
+
+<dialog class="sheet" id="rules" aria-labelledby="rules-title">
+  <h2 id="rules-title">규칙도 몰라?</h2>
+  <p class="snark" id="rules-snark"></p>
+  <ol>
+    <li><b>내 말을 전부 한 덩어리로 이으면 이긴다.</b> 가로, 세로, 대각선으로 붙어 있으면 이어진 거야.
+      <span class="aside">목표는 잇는 거야. 잡는 게 아니고.</span></li>
+    <li><b>가로, 세로, 대각선으로 움직인다. 몇 칸 갈지는 그 줄에 놓인 말 수로 정해진다.</b> 내 말, 상대 말 다 센다.
+      <svg viewBox="0 0 400 96" aria-label="말이 3개 있는 줄에서 흑돌이 3칸 가는 그림">
+        <g fill="none" stroke="#1b1b1b" stroke-width="2" stroke-linecap="round">
+          <path d="M2 40 H398 M2 90 H398"/><path d="M2 40 V90 M52 40 V90 M102 40 V90 M152 40 V90 M202 40 V90 M252 40 V90 M302 40 V90 M352 40 V90 M398 40 V90"/>
+          <path d="M28 34 Q102 -4 172 30" stroke="#d8452f" stroke-width="2.6"/><path d="M160 22 L174 32 L158 36" stroke="#d8452f" stroke-width="2.6"/>
+          <circle cx="177" cy="65" r="16" stroke="#d8452f" stroke-dasharray="5 5"/>
+          <circle cx="327" cy="65" r="17" fill="#fdfdfb" stroke-width="2.6"/>
+        </g>
+        <circle cx="27" cy="65" r="18" fill="#1b1b1b"/><circle cx="127" cy="65" r="18" fill="#1b1b1b"/>
+      </svg>
+      <span class="aside">이 줄엔 흑 둘, 백 하나로 말이 3개. 그러니까 3칸. 말로 하면 못 알아들을 것 같아서 그렸어.</span></li>
+    <li><b>내 말은 넘어가도 되고, 상대 말은 못 넘는다.</b>
+      <span class="aside">위 그림에서 흑돌이 자기 편을 넘어간 거 봤지?</span></li>
+    <li><b>상대 말이 있는 칸에 멈추면 잡는다.</b>
+      <span class="aside">근데 잡으면 상대 말이 줄어서 걔가 잇기 쉬워져. 알아서 해.</span></li>
+    <li><b>흑이 먼저 둔다.</b> 둘 데가 없으면 차례를 넘긴다.
+      <span class="aside">너한테 자주 일어날 일이야.</span></li>
+    <li><b>무승부:</b> 한 수로 둘 다 동시에 이어지거나, 같은 국면이 같은 차례로 세 번 나오면.
+      <span class="aside">나랑 비기는 것도 쉽지 않아.</span></li>
+  </ol>
+  <div class="record"><span id="record"></span><button type="button" class="linkish" id="btn-reset">전적 지우기</button></div>
+  <form method="dialog"><button class="btn small">알겠어</button></form>
+</dialog>
 
 <script src="engine.js"></script>
 <script src="characters.js"></script>
@@ -157,7 +211,9 @@ const portraitEl = document.getElementById("portrait"), bubbleEl = document.getE
 const WIN = R.WIN, MATE = R.MATE_BOUND;
 let recent = [], slowTimer = 0, chatTimer = 0, winTimer = 0, prevP = null, mateSaid = false, leadSaid = false, doomSaid = false;
 let humanNearSaid = false, engineNearSaid = false, longSaid = false, turnStart = 0;
-let games = 0, turkWins = 0, humanWins = 0, streak = 0; // this visit only
+// the record is kept in this browser across visits (streak: Turk's wins in a row, hstreak: mine)
+const rec = Object.assign({ games: 0, turk: 0, human: 0, draws: 0, streak: 0, hstreak: 0, last: 0 }, store.get("turk-record", {}));
+const saveRec = () => { rec.last = Date.now(); store.set("turk-record", rec); };
 function say(key, vars) {
   const all = TALK[key];
   const fresh = all.filter((x) => !recent.includes(x)); // don't repeat anything said in the last few lines
@@ -203,19 +259,22 @@ function chat() {
 function endTalk() {
   clearTimeout(slowTimer); clearTimeout(chatTimer);
   const st = state;
-  games++;
-  if (!st.winner) { streak = 0; say("draw"); return; }
-  let follow;
-  if (st.winner === human) { humanWins++; streak = 0; say("humanWin"); follow = "humanWin2"; }
-  else {
-    turkWins++; streak++;
+  rec.games++;
+  if (!st.winner) { rec.draws++; rec.streak = rec.hstreak = 0; saveRec(); say("draw"); return; }
+  let follow, fv;
+  if (st.winner === human) {
+    rec.human++; rec.hstreak++; rec.streak = 0; saveRec();
+    say(rec.human === 1 ? "humanWinFirst" : "humanWin"); follow = "humanWin2";
+  } else {
+    const broke = rec.hstreak;
+    rec.turk++; rec.streak++; rec.hstreak = 0; saveRec();
     // rub it in, with real numbers from the final position
     say("engineWin", { n: Math.ceil(moves.length / 2), g: R._label(human) });
-    follow = "engineWin2";
+    follow = broke >= 2 ? "streakBroken" : "engineWin2"; fv = { k: broke };
   }
   const g = gameId;
   clearTimeout(winTimer);
-  winTimer = setTimeout(() => { if (g === gameId && state.over) say(follow); }, 3500);
+  winTimer = setTimeout(() => { if (g === gameId && state.over) say(follow, fv); }, 3500);
 }
 // after the engine's move; info.score is from the engine's side before it moved
 function engineTalk(m, info) {
@@ -315,8 +374,9 @@ function next() {
   render();
 }
 function commit(m, info) {
-  const mover = state.stm;
+  const mover = state.stm, taken = m !== PASS && (m & 4096) ? state.b[(m >> 6) & 63] : 0;
   moves.push(m); sel = -1;
+  if (taken) scribble((m >> 6) & 63, taken);
   state = replay();
   render(m === PASS ? -1 : m & 63, m === PASS ? -1 : (m >> 6) & 63);
   if (mover === human) humanTalk(m, Date.now() - turnStart); else engineTalk(m, info);
@@ -347,8 +407,10 @@ function start(side) {
   document.getElementById("btn-new").hidden = false;
   document.getElementById("stage").classList.add("playing");
   boardEl.setAttribute("aria-label", "LOA 판, 나는 " + sideName(side));
-  if (games > 0 && streak >= 2 && Math.random() < 0.7) say("streak", { k: streak });
-  else if (games > 0 && Math.random() < 0.6) say("rematch", { w: turkWins, l: humanWins });
+  if (rec.hstreak >= 2) say("humanStreak", { k: rec.hstreak });
+  else if (rec.streak >= 2 && Math.random() < 0.7) say("streak", { k: rec.streak });
+  else if (rec.games > 0 && (rec.games + 1) % 10 === 0) say("milestone", { n: rec.games + 1 });
+  else if (rec.games > 0 && Math.random() < 0.6) say("rematch", { w: rec.turk, l: rec.human });
   else say(side === 1 ? "startHumanBlack" : "startEngineBlack");
   render();
   if (side === 1) armSlowTimer();
@@ -407,7 +469,7 @@ function render(animFrom, animTo) {
     el.classList.toggle("last", s === lf || s === lt);
     el.classList.toggle("sel", s === sel);
     el.classList.toggle("won", st.won.includes(s));
-    let h = p ? `<span class="piece ${p === 1 ? "b" : "w"}"></span>` : "";
+    let h = p ? `<span class="piece ${p === 1 ? "b" : "w"}" style="rotate:${(s * 47) % 31 - 15}deg"></span>` : "";
     if (targets.has(s)) h += targets.get(s) ? `<span class="ring"></span>` : `<span class="dot"></span>`;
     if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; }
     el.setAttribute("aria-label", sqName(s) + (p ? (p === 1 ? " 흑" : " 백") : " 빈칸") + (targets.has(s) ? ", 여기로 이동 가능" : ""));
@@ -417,25 +479,77 @@ function render(animFrom, animTo) {
   boardEl.classList.toggle("drawn", st.over && !st.winner);
   const sh = statusText(st), se = document.getElementById("status");
   if (se.dataset.h !== sh) { se.innerHTML = sh; se.dataset.h = sh; }
-  if (animFrom >= 0 && animTo >= 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const pc = sqEls[animTo].querySelector(".piece");
-    if (pc) {
-      const a = sqEls[animFrom].getBoundingClientRect(), b = sqEls[animTo].getBoundingClientRect();
-      pc.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
-      pc.getBoundingClientRect();
-      pc.classList.add("moving");
-      pc.style.transform = "";
-    }
-  }
+  if (animFrom >= 0 && animTo >= 0 && !reduced()) hop(animFrom, animTo);
+}
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+const centre = (s) => [(s & 7) * 100 + 50, (s >> 3) * 100 + 50]; // in the 800 x 800 grid
+// the piece hops from square to square along a pencil arc, and squashes a little as it lands
+function hop(from, to) {
+  const pc = sqEls[to].querySelector(".piece");
+  if (!pc) return;
+  const a = sqEls[from].getBoundingClientRect(), b = sqEls[to].getBoundingClientRect();
+  const dx = a.left - b.left, dy = a.top - b.top, lift = Math.min(40, 14 + Math.hypot(dx, dy) * 0.12), tilt = dx > 0 ? -10 : 10;
+  pc.animate([
+    { transform: `translate(${dx}px, ${dy}px)` },
+    { transform: `translate(${dx / 2}px, ${dy / 2 - lift}px) rotate(${tilt}deg) scale(1.08)`, offset: 0.5 },
+    { transform: "translate(0, 0) scale(1.12, .88)", offset: 0.85 },
+    { transform: "none" },
+  ], { duration: 460, easing: "ease-in-out" });
+  const [x1, y1] = centre(from), [x2, y2] = centre(to);
+  const len = Math.hypot(x2 - x1, y2 - y1), bend = Math.min(60, len * 0.3);
+  const mx = (x1 + x2) / 2 + ((y1 - y2) / len) * bend * Math.sign(x2 - x1 || 1), my = (y1 + y2) / 2 - Math.abs((x2 - x1) / len) * bend;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "trail"); svg.setAttribute("viewBox", "0 0 800 800"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = `<path pathLength="1" vector-effect="non-scaling-stroke" d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}"/>`;
+  boardEl.appendChild(svg);
+  setTimeout(() => svg.remove(), 1800);
+}
+// a captured piece is scribbled out with the pen and fades before the mover lands on it
+function scribble(s, colour) {
+  if (reduced()) return;
+  const g = document.createElement("div");
+  g.className = "ghost";
+  g.style.left = (s & 7) * 12.5 + "%"; g.style.top = (s >> 3) * 12.5 + "%";
+  g.innerHTML = `<span class="piece ${colour === 1 ? "b" : "w"}"></span><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M18 30 L82 22 L16 44 L84 38 L18 58 L82 54 L20 74 L80 70"/></svg>`;
+  boardEl.appendChild(g);
+  setTimeout(() => g.remove(), 900);
 }
 
 document.getElementById("btn-new").addEventListener("click", newGame);
 document.getElementById("pick-1").addEventListener("click", () => start(1));
 document.getElementById("pick-2").addEventListener("click", () => start(2));
+/* ---------------- rules sheet and record ---------------- */
+const rulesEl = document.getElementById("rules"), resetBtn = document.getElementById("btn-reset");
+let rulesSeen = 0;
+function showRecord() {
+  document.getElementById("record").textContent = `전적: 튀르크 ${rec.turk}승 · 너 ${rec.human}승 · 무승부 ${rec.draws}`;
+  resetBtn.textContent = "전적 지우기"; resetBtn.dataset.armed = "";
+}
+function pickLine(key) {
+  const all = TALK[key];
+  return all[Math.floor(Math.random() * all.length)];
+}
+document.getElementById("btn-rules").addEventListener("click", () => {
+  document.getElementById("rules-snark").textContent = pickLine(rulesSeen++ ? "rulesAgain" : "rules");
+  showRecord();
+  if (rulesEl.showModal) rulesEl.showModal(); else rulesEl.setAttribute("open", "");
+});
+rulesEl.addEventListener("close", () => say("rulesDone"));
+resetBtn.addEventListener("click", () => {
+  if (!resetBtn.dataset.armed) { resetBtn.dataset.armed = "1"; resetBtn.textContent = "진짜 지울까? 한 번 더 눌러"; return; }
+  Object.assign(rec, { games: 0, turk: 0, human: 0, draws: 0, streak: 0, hstreak: 0 }); saveRec();
+  showRecord();
+  document.getElementById("rules-snark").textContent = pickLine("recordReset");
+});
+
 portraitEl.innerHTML = char.svg;
 place(blobX);
 wanderTimer = setTimeout(wander, 2000);
-say("pick");
+// the first line knows whether we've met, and how long ago
+const away = rec.last ? Math.floor((Date.now() - rec.last) / 86400000) : 0;
+if (!rec.games) say("firstVisit");
+else if (away >= 1) say("welcomeBack", { days: away, w: rec.turk, l: rec.human });
+else say("pick");
 state = replay();
 render();
 </script>
