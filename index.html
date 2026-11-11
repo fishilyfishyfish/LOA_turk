@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>LOA 튀르크</title>
 <style>
-/* Layout: Turk (portrait + speech bubble) on top, then the status line, the board, and the pickers (or one button) */
+/* Layout: the status line, Turk peeking over the board with its bubble, the board, and the pickers (or one button) */
 :root {
   --bg: #e8ebe5;
   --ink: #16191b;
@@ -22,7 +22,6 @@
   --black-edge: #000;
   --white-piece: #fbfbf7;
   --white-edge: #8c938b;
-  --portrait-bg: #dfe3d9;
   --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   color-scheme: light;
 }
@@ -31,39 +30,44 @@
     --bg: #111413; --ink: #e6eae5; --line: #2d3430; --surface: #1c211f; --muted: #8f9890;
     --sq-light: #586257; --sq-dark: #3a423b; --accent: #7d9bff; --accent-soft: rgba(125, 155, 255, .22);
     --on-accent: #0c1433; --win: #4cc48c; --black-piece: #0b0d0e; --black-edge: #000;
-    --white-piece: #eef0ea; --white-edge: #9aa298; --portrait-bg: #2a312d; color-scheme: dark;
+    --white-piece: #eef0ea; --white-edge: #9aa298; color-scheme: dark;
   }
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font); }
-.stage { --size: max(260px, min(92vw, calc(100vh - 330px), 560px)); min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
-.stage.playing { --size: max(260px, min(92vw, calc(100vh - 290px), 620px)); }
+.stage { --size: max(260px, min(92vw, calc(100vh - 360px), 560px)); min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+.stage.playing { --size: max(260px, min(92vw, calc(100vh - 330px), 620px)); }
 
-/* Turk */
-.turk { width: var(--size); max-width: 100%; display: flex; align-items: center; gap: 12px; }
-.portrait { flex: none; width: 84px; height: 84px; border-radius: 50%; background: var(--portrait-bg); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
-.portrait svg { display: block; width: 100%; height: 100%; }
+/* Turk: a dome peeking over the board's top edge, wandering left and right; the bubble follows it */
+.perch { position: relative; width: var(--size); max-width: 100%; height: 142px; margin-bottom: -12px; }
+.portrait { position: absolute; bottom: 0; left: 20%; width: 74px; height: 69px; margin-left: -37px; z-index: 0; }
+.portrait svg { display: block; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 100%; }
+.portrait .face { transition: transform .3s; }
+.portrait[data-dir="l"] .face { transform: translateX(-3px); }
+.portrait[data-dir="r"] .face { transform: translateX(3px); }
 .portrait [class^="m-"] { display: none; }
 .portrait[data-mood="smug"] .m-smug, .portrait[data-mood="gloat"] .m-gloat,
 .portrait[data-mood="angry"] .m-angry, .portrait[data-mood="shock"] .m-shock { display: inline; }
+.bubble { position: absolute; left: 0; bottom: 68px; margin: 0; width: max-content; max-width: min(300px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 9px 13px; font-size: 15px; line-height: 1.45; transform-origin: var(--tail, 50%) bottom; }
+.bubble::before { content: ""; position: absolute; left: var(--tail, 50%); bottom: -7px; width: 12px; height: 12px; margin-left: -6px; background: var(--surface); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg); }
 @media (prefers-reduced-motion: no-preference) {
-  .portrait.jolt { animation: jolt .45s ease-out; }
-  .portrait.thinking svg { animation: bob 1.6s ease-in-out infinite; }
+  .portrait { transition: left 1.8s ease-in-out; }
+  .bubble { transition: left 1.8s ease-in-out, opacity .3s; }
+  .portrait.walk svg { animation: waddle .45s ease-in-out infinite; }
+  .portrait.jolt svg { animation: jolt .45s ease-out; }
+  .portrait.thinking svg { animation: bob 1.2s ease-in-out infinite; }
   .bubble.pop { animation: pop .25s ease-out; }
 }
-@keyframes jolt { 20% { transform: translateX(-4px) rotate(-3deg); } 45% { transform: translateX(4px) rotate(3deg); } 70% { transform: translateX(-2px); } }
-@keyframes bob { 50% { transform: translateY(2px); } }
+@keyframes waddle { 25% { transform: rotate(-5deg) translateY(-2px); } 75% { transform: rotate(5deg) translateY(-2px); } }
+@keyframes jolt { 20% { transform: translateY(-8px) rotate(-4deg); } 45% { transform: translateY(-3px) rotate(4deg); } 70% { transform: translateY(-1px); } }
+@keyframes bob { 50% { transform: translateY(-4px); } }
 @keyframes pop { from { transform: scale(.94); opacity: .4; } }
-.speech { flex: 1; min-width: 0; }
-.who { font-size: 12px; font-weight: 700; color: var(--muted); margin: 0 0 4px 12px; }
-.bubble { position: relative; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; font-size: 15px; line-height: 1.45; min-height: 44px; transform-origin: left center; transition: opacity .3s; }
-.bubble::before { content: ""; position: absolute; left: -7px; top: 50%; width: 12px; height: 12px; background: var(--surface); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: translateY(-50%) rotate(45deg); }
 .bubble.stale { opacity: .55; }
 
 /* board */
-.board { width: var(--size); height: var(--size); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), 0 12px 34px -18px rgba(0, 0, 0, .55); transition: box-shadow .3s; }
+.board { position: relative; z-index: 1; width: var(--size); height: var(--size); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), 0 12px 34px -18px rgba(0, 0, 0, .55); transition: box-shadow .3s; }
 .board.thinking { box-shadow: 0 0 0 2px var(--accent), 0 12px 34px -18px rgba(0, 0, 0, .55); }
 @media (prefers-reduced-motion: no-preference) { .board.thinking { animation: think 1.4s ease-in-out infinite; } }
 @keyframes think { 50% { box-shadow: 0 0 0 2px transparent, 0 12px 34px -18px rgba(0, 0, 0, .55); } }
@@ -97,23 +101,19 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); }
 .chip.b { background: var(--black-piece); box-shadow: 0 0 0 1px var(--on-accent); }
 .chip.w { background: var(--white-piece); box-shadow: 0 0 0 1px var(--white-edge); }
 @media (max-width: 420px) {
-  .portrait { width: 64px; height: 64px; }
   .bubble { font-size: 14px; }
 }
 </style>
 </head>
 <body>
 <main class="stage" id="stage">
-  <section class="turk" aria-label="튀르크">
-    <div class="portrait" id="portrait" data-mood="smug"></div>
-    <div class="speech">
-      <div class="who" id="who"></div>
-      <p class="bubble" id="bubble" aria-live="polite"></p>
-    </div>
-  </section>
   <div class="bar">
     <div class="status" id="status" aria-live="polite"></div>
   </div>
+  <section class="perch" id="perch" aria-label="튀르크">
+    <p class="bubble" id="bubble" aria-live="polite"></p>
+    <div class="portrait" id="portrait" data-mood="smug"></div>
+  </section>
   <div class="board" id="board" role="grid" aria-label="LOA 판"></div>
   <div class="controls">
     <div class="setup" id="pick">
@@ -136,8 +136,7 @@ const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
-// one Turk; ?turk=<id> tries another candidate (see candidates.html)
-const char = CHARS.find((c) => c.id === new URLSearchParams(location.search).get("turk")) || CHARS[0];
+const char = TURK;
 let human = 1, started = false; // the game starts once a side is picked
 const R = LoaEngine({ ttBits: 8 });
 const PASS = R.PASS;
@@ -191,7 +190,32 @@ function say(key, vars) {
   setMood(moodOf(key));
   bubbleEl.textContent = line.replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined ? vars[k] : ""));
   bubbleEl.classList.remove("pop"); void bubbleEl.offsetWidth; bubbleEl.classList.add("pop");
+  place(blobX);
 }
+// Turk wanders along the top edge of the board; it stands still while thinking
+const perchEl = document.getElementById("perch");
+let blobX = 0.2, wanderTimer = 0;
+function place(x) {
+  blobX = x;
+  const W = perchEl.clientWidth, px = x * W, bw = bubbleEl.offsetWidth;
+  const bl = Math.max(0, Math.min(W - bw, px - bw / 2));
+  portraitEl.style.left = px + "px";
+  bubbleEl.style.left = bl + "px";
+  bubbleEl.style.setProperty("--tail", Math.max(16, Math.min(bw - 16, px - bl)) + "px");
+}
+function wander() {
+  if (!portraitEl.classList.contains("thinking") && Math.random() < 0.8) {
+    const nx = 0.1 + Math.random() * 0.8;
+    if (Math.abs(nx - blobX) > 0.08 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      portraitEl.dataset.dir = nx < blobX ? "l" : "r";
+      portraitEl.classList.add("walk");
+      place(nx);
+    }
+  }
+  wanderTimer = setTimeout(wander, 2500 + Math.random() * 4000);
+}
+portraitEl.addEventListener("transitionend", (e) => { if (e.propertyName === "left") portraitEl.classList.remove("walk"); });
+addEventListener("resize", () => place(blobX));
 const man = (n) => (n >= 10000 ? Math.round(n / 10000) + "만" : String(n));
 function chat() {
   let r = Math.random() * CHAT.reduce((a, k) => a + TALK[k].length, 0);
@@ -421,7 +445,8 @@ document.getElementById("btn-new").addEventListener("click", newGame);
 document.getElementById("pick-1").addEventListener("click", () => start(1));
 document.getElementById("pick-2").addEventListener("click", () => start(2));
 portraitEl.innerHTML = portraitSvg(char);
-document.getElementById("who").textContent = char.name;
+place(blobX);
+wanderTimer = setTimeout(wander, 2000);
 say("pick");
 state = replay();
 render();
