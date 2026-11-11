@@ -70,11 +70,9 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
   .zz span { opacity: 0; animation: zz 2.4s ease-out infinite; }
   .zz span:nth-child(2) { animation-delay: .5s; } .zz span:nth-child(3) { animation-delay: 1s; }
   .board.drawin .piece { animation: drawin .3s ease-out backwards; animation-delay: var(--d); }
-  .portrait.thinking.walk svg { animation: waddle .3s ease-in-out infinite; } /* scanning the board while thinking */
   .dots i { opacity: 0; animation: dot 1.5s ease-out infinite; }
   .dots i:nth-child(2) { animation-delay: .3s; }
   .dots i:nth-child(3) { animation-delay: .6s; }
-  .probe { animation: probe 1.3s ease-out forwards; }
   .portrait.walk svg { animation: waddle .45s ease-in-out infinite; }
   .portrait.thinking svg { animation: bob 1.2s ease-in-out infinite; }
   .bubble.pop { animation: pop .25s ease-out; }
@@ -82,7 +80,6 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 @keyframes waddle { 25% { transform: rotate(-3deg) translateY(-3px); } 75% { transform: rotate(3deg) translateY(-3px); } }
 @keyframes poked { 25% { transform: scale(1.1, .86); } 55% { transform: scale(.94, 1.08) rotate(-3deg); } }
 @keyframes dot { 0% { opacity: 0; transform: scale(.3); } 12%, 70% { opacity: 1; transform: none; } 100% { opacity: 0; } }
-@keyframes probe { 0% { opacity: 0; transform: scale(1.6); } 15% { opacity: 1; transform: none; } 60% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes sway { 50% { transform: rotate(5deg); } }
 @keyframes zz { 0% { opacity: 0; transform: translateY(6px); } 25%, 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-8px); } }
 @keyframes drawin { from { opacity: 0; transform: scale(.4) rotate(-20deg); } }
@@ -115,7 +112,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 /* drawn from the start square, then rubbed out from the same end, leaving a faint eraser smudge that fades */
 .trail .line { stroke: rgba(27, 27, 27, .45); stroke-width: 2; stroke-dashoffset: 1; animation: draw .35s ease-out forwards, erase .6s .9s ease-in-out forwards; }
 .trail .smudge { stroke: rgba(27, 27, 27, .07); stroke-width: 9; stroke-dashoffset: 1; animation: draw .6s .9s ease-in-out forwards, smudge .5s 1.4s forwards; }
-/* thinking: pen dots beside Turk's head, and pencil taps on squares it is looking at */
+/* thinking: pen dots beside Turk's head */
 .dots { position: absolute; left: calc(var(--x) + 30px); bottom: 54px; display: none; gap: 5px; pointer-events: none; }
 .perch:has(.portrait.thinking) .dots { display: flex; }
 /* dozing: sinks a little, sways, and pen z's float up beside its head */
@@ -129,8 +126,6 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .wipe path { fill: none; stroke: var(--sheet); stroke-width: 200; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: draw .5s ease-in-out forwards; }
 .wipe.done { transition: opacity .25s; opacity: 0; }
 .dots i { width: 6px; height: 6px; border-radius: 45% 55% 50% 50%; background: var(--ink); }
-.probe { position: absolute; width: 12.5%; height: 12.5%; display: grid; place-items: center; pointer-events: none; z-index: 2; }
-.probe::before { content: ""; width: 20%; height: 20%; border-radius: 45% 55% 52% 48%; background: rgba(27, 27, 27, .55); }
 .ghost { position: absolute; width: 12.5%; height: 12.5%; display: grid; place-items: center; pointer-events: none; z-index: 2; animation: fade .3s .45s forwards; }
 .ghost svg { position: absolute; z-index: 2; inset: 8%; width: 84%; height: 84%; overflow: visible; }
 .ghost path { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 520; stroke-dashoffset: 520; animation: draw .4s ease-out forwards; } /* 520: a bit over the zigzag's length */
@@ -464,13 +459,12 @@ function done(d) {
 function next() {
   if (!started || busy || state.over) return;            // a ponder slice calls next() again when it ends
   if (!state.legal.length) { commit(PASS); return; }     // no legal move: pass
-  if (state.stm !== human) { send({ id: ++reqId, game: gameId, moves: moves.slice(), time: THINK_MS, ponder: false }); startScan(); }
+  if (state.stm !== human) { send({ id: ++reqId, game: gameId, moves: moves.slice(), time: THINK_MS, ponder: false }); wake(); }
   else if (!workerBroken) send({ id: ++reqId, game: gameId, moves: moves.slice(), time: PONDER_MS, ponder: true });
   render();
 }
 function commit(m, info) {
   const mover = state.stm, taken = m !== PASS && (m & 4096) ? state.b[(m >> 6) & 63] : 0;
-  stopScan();
   moves.push(m); sel = -1;
   if (taken) scribble((m >> 6) & 63, taken);
   state = replay();
@@ -481,35 +475,8 @@ function commit(m, info) {
   next();
 }
 // "새 게임": stop, reset the board, and ask for a side again
-// while Turk thinks it looks around: walks to the column of one of its moves and taps that square with the pencil
-let scanTimer = 0;
-function startScan() {
-  wake();
-  stopScan();
-  if (reduced()) return;
-  const g = gameId, ply = moves.length;
-  const look = () => {
-    if (g !== gameId || moves.length !== ply || hiding) return;
-    const legal = state.legal;
-    if (legal.length) {
-      const caps = legal.filter((m) => m & 4096), pool = caps.length && Math.random() < 0.4 ? caps : legal; // captures catch its eye
-      const to = (pool[Math.floor(Math.random() * pool.length)] >> 6) & 63;
-      walkTo(((to & 7) + 0.5) / 8, 500);
-      setTimeout(() => {
-        if (g !== gameId || moves.length !== ply) return;
-        const d = document.createElement("div");
-        d.className = "probe"; d.style.left = (to & 7) * 12.5 + "%"; d.style.top = (to >> 3) * 12.5 + "%";
-        boardEl.appendChild(d); setTimeout(() => d.remove(), 1400);
-      }, 450);
-    }
-    scanTimer = setTimeout(look, 900 + Math.random() * 500);
-  };
-  scanTimer = setTimeout(look, 300);
-}
-function stopScan() { clearTimeout(scanTimer); for (const d of boardEl.querySelectorAll(".probe")) d.remove(); }
 function newGame() {
   gameId++;
-  stopScan();
   clearTimeout(slowTimer); clearTimeout(chatTimer); clearTimeout(winTimer);
   if (busy && !busy.ponder && worker) { worker.terminate(); worker = null; busy = null; } // don't wait out a 5 s think
   const hadMoves = moves.length > 0;
@@ -669,7 +636,7 @@ function wipeBoard() {
   svg.innerHTML = `<path pathLength="1" d="M-40 60 L840 30 L-40 230 L840 200 L-40 400 L840 370 L-40 570 L840 540 L-40 760 L840 740"/>`;
   boardEl.appendChild(svg);
   setTimeout(() => {
-    if (g === gameId) { clearLoop(); for (const e of boardEl.querySelectorAll(".trail, .ghost, .probe")) e.remove(); render(); }
+    if (g === gameId) { clearLoop(); for (const e of boardEl.querySelectorAll(".trail, .ghost")) e.remove(); render(); }
     boardEl.classList.add("drawin");
     svg.classList.add("done");
     setTimeout(() => { svg.remove(); boardEl.classList.remove("drawin"); }, 900);
