@@ -4,45 +4,34 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>LOA 튀르크</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap">
 <style>
-/* Layout: the status line, Turk peeking over the board with its bubble, the board, and the pickers (or one button) */
+/* A sketchbook page: pen lines on paper, like Turk itself.
+   Layout: the status line, Turk peeking over the board with its bubble, the board, and the pickers (or one button) */
 :root {
-  --bg: #e8ebe5;
-  --ink: #16191b;
-  --line: #c6ccc3;
-  --surface: #f7f8f4;
-  --muted: #5a625d;
-  --sq-light: #d5d9cf;
-  --sq-dark: #98a395;
-  --accent: #2346c8;
-  --accent-soft: rgba(35, 70, 200, .16);
-  --on-accent: #ffffff;
-  --win: #1d8656;
-  --black-piece: #1b1f22;
-  --black-edge: #000;
-  --white-piece: #fbfbf7;
-  --white-edge: #8c938b;
-  --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --paper: #f7f6f1;
+  --sheet: #fdfdfb;
+  --ink: #1b1b1b;
+  --muted: #6b6a64;
+  --pen: #d8452f;                       /* red pen: selection, moves, captures */
+  --marker: rgba(255, 214, 0, .45);     /* highlighter: the last move */
+  --hand: 255px 15px 225px 15px / 15px 225px 15px 255px; /* a wobbly hand-drawn box */
+  --font: "Gaegu", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111413; --ink: #e6eae5; --line: #2d3430; --surface: #1c211f; --muted: #8f9890;
-    --sq-light: #586257; --sq-dark: #3a423b; --accent: #7d9bff; --accent-soft: rgba(125, 155, 255, .22);
-    --on-accent: #0c1433; --win: #4cc48c; --black-piece: #0b0d0e; --black-edge: #000;
-    --white-piece: #eef0ea; --white-edge: #9aa298; color-scheme: dark;
-  }
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--ink); font-family: var(--font); }
+body { background: var(--paper); color: var(--ink); font-family: var(--font); font-size: 18px; }
 .stage { --size: max(260px, min(92vw, calc(100vh - 360px), 560px)); min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
 .stage.playing { --size: max(260px, min(92vw, calc(100vh - 330px), 620px)); }
 
-/* Turk: a dome peeking over the board's top edge, wandering left and right; the bubble follows it */
+/* Turk: a dome peeking over the board's top edge, wandering left and right; the bubble follows it.
+   Its body runs on below the edge, hidden behind the board, so nothing shows underneath when it waddles. */
 .perch { position: relative; width: var(--size); max-width: 100%; height: 142px; margin-bottom: -12px; }
-.portrait { position: absolute; bottom: 0; left: 20%; width: 74px; height: 69px; margin-left: -37px; z-index: 0; }
+.portrait { position: absolute; bottom: -36px; left: 20%; width: 74px; height: 104px; margin-left: -37px; z-index: 0; }
 .portrait svg { display: block; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 100%; }
 .portrait .face { transition: transform .3s; }
 .portrait[data-dir="l"] .face { transform: translateX(-3px); }
@@ -50,8 +39,8 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); }
 .portrait [class^="m-"] { display: none; }
 .portrait[data-mood="smug"] .m-smug, .portrait[data-mood="gloat"] .m-gloat,
 .portrait[data-mood="angry"] .m-angry, .portrait[data-mood="shock"] .m-shock { display: inline; }
-.bubble { position: absolute; left: 0; bottom: 68px; margin: 0; width: max-content; max-width: min(300px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 9px 13px; font-size: 15px; line-height: 1.45; transform-origin: var(--tail, 50%) bottom; }
-.bubble::before { content: ""; position: absolute; left: var(--tail, 50%); bottom: -7px; width: 12px; height: 12px; margin-left: -6px; background: var(--surface); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg); }
+.bubble { position: absolute; left: 0; bottom: 78px; margin: 0; width: max-content; max-width: min(300px, 100%); background: var(--sheet); border: 2.4px solid var(--ink); border-radius: var(--hand); padding: 8px 14px; font-size: 19px; line-height: 1.3; transform-origin: var(--tail, 50%) bottom; }
+.bubble::before { content: ""; position: absolute; left: var(--tail, 50%); bottom: -10px; width: 17px; height: 17px; margin-left: -8px; background: var(--sheet); border-right: 2.4px solid var(--ink); border-bottom: 2.4px solid var(--ink); transform: rotate(45deg); }
 @media (prefers-reduced-motion: no-preference) {
   .portrait { transition: left 1.8s ease-in-out; }
   .bubble { transition: left 1.8s ease-in-out, opacity .3s; }
@@ -60,48 +49,44 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); }
   .portrait.thinking svg { animation: bob 1.2s ease-in-out infinite; }
   .bubble.pop { animation: pop .25s ease-out; }
 }
-@keyframes waddle { 25% { transform: rotate(-5deg) translateY(-2px); } 75% { transform: rotate(5deg) translateY(-2px); } }
-@keyframes jolt { 20% { transform: translateY(-8px) rotate(-4deg); } 45% { transform: translateY(-3px) rotate(4deg); } 70% { transform: translateY(-1px); } }
-@keyframes bob { 50% { transform: translateY(-4px); } }
+@keyframes waddle { 25% { transform: rotate(-3deg) translateY(-3px); } 75% { transform: rotate(3deg) translateY(-3px); } }
+@keyframes jolt { 20% { transform: translateY(-10px) rotate(-3deg); } 45% { transform: translateY(-4px) rotate(3deg); } 70% { transform: translateY(-1px); } }
+@keyframes bob { 50% { transform: translateY(-5px); } }
 @keyframes pop { from { transform: scale(.94); opacity: .4; } }
 .bubble.stale { opacity: .55; }
 
-/* board */
-.board { position: relative; z-index: 1; width: var(--size); height: var(--size); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), 0 12px 34px -18px rgba(0, 0, 0, .55); transition: box-shadow .3s; }
-.board.thinking { box-shadow: 0 0 0 2px var(--accent), 0 12px 34px -18px rgba(0, 0, 0, .55); }
-@media (prefers-reduced-motion: no-preference) { .board.thinking { animation: think 1.4s ease-in-out infinite; } }
-@keyframes think { 50% { box-shadow: 0 0 0 2px transparent, 0 12px 34px -18px rgba(0, 0, 0, .55); } }
-.sq { position: relative; border: 0; padding: 0; margin: 0; background: var(--sq-light); cursor: pointer; display: grid; place-items: center; }
-.sq.dk { background: var(--sq-dark); }
-.sq:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; z-index: 2; }
-.sq.last::after { content: ""; position: absolute; inset: 0; background: var(--accent-soft); pointer-events: none; }
-.sq.sel::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 3px var(--accent); pointer-events: none; }
-.piece { width: 76%; height: 76%; border-radius: 50%; pointer-events: none; position: relative; z-index: 1; transition: opacity .3s; }
-.piece.b { background: radial-gradient(circle at 35% 30%, #4a5157 0%, var(--black-piece) 62%); box-shadow: 0 0 0 1px var(--black-edge), 0 3px 6px -2px rgba(0, 0, 0, .6); }
-.piece.w { background: radial-gradient(circle at 35% 30%, #ffffff 0%, var(--white-piece) 60%, #d9ddd5 100%); box-shadow: 0 0 0 1px var(--white-edge), 0 3px 6px -2px rgba(0, 0, 0, .45); }
-.sq.won .piece { box-shadow: 0 0 0 3px var(--win), 0 0 16px 3px var(--win); }
-.board.drawn .piece { opacity: .45; }
-.dot { width: 26%; height: 26%; border-radius: 50%; background: var(--accent); opacity: .75; pointer-events: none; }
-.ring { position: absolute; inset: 7%; border-radius: 50%; border: 3px solid var(--accent); pointer-events: none; z-index: 2; }
+/* board: plain paper squares, hatched dark squares, pen grid drawn on top (see drawGrid) */
+.board { position: relative; z-index: 1; width: var(--size); height: var(--size); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); background: var(--sheet); }
+.grid { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 3; }
+.sq { position: relative; border: 0; padding: 0; margin: 0; background: var(--sheet); cursor: pointer; display: grid; place-items: center; }
+.sq.dk { background: repeating-linear-gradient(-45deg, transparent 0 7px, rgba(27, 27, 27, .13) 7px 8.5px), var(--sheet); }
+.sq:focus-visible { outline: 3px dashed var(--pen); outline-offset: -5px; z-index: 2; }
+.sq.last::after { content: ""; position: absolute; inset: 14% 6%; background: var(--marker); border-radius: 40% 10% 45% 12%; transform: rotate(-4deg); pointer-events: none; }
+.piece { width: 72%; height: 72%; border-radius: 48% 52% 46% 54% / 53% 47% 55% 45%; pointer-events: none; position: relative; z-index: 1; transition: opacity .3s; }
+.piece.b { background: var(--ink); box-shadow: inset -4px -5px 0 -2px rgba(255, 255, 255, .12); }
+.piece.w { background: var(--sheet); border: 2.6px solid var(--ink); }
+.sq.sel .piece { outline: 2.6px solid var(--pen); outline-offset: 3px; }
+.sq.won .piece { outline: 3px solid var(--pen); outline-offset: 3px; }
+.board.drawn .piece { opacity: .4; }
+.dot { width: 22%; height: 22%; border-radius: 45% 55% 50% 50%; background: var(--pen); pointer-events: none; }
+.ring { position: absolute; inset: 6%; border-radius: 52% 48% 50% 50% / 46% 54% 46% 54%; border: 2.6px dashed var(--pen); pointer-events: none; z-index: 2; }
 @media (prefers-reduced-motion: no-preference) { .piece.moving { transition: transform .22s cubic-bezier(.2, .7, .2, 1); } }
 
-.bar { width: var(--size); max-width: 100%; min-height: 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.status { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.status .chip { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
-.status .chip.b { box-shadow: 0 0 0 1px var(--black-edge); }
+.bar { width: var(--size); max-width: 100%; min-height: 26px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.status { font-size: 21px; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chip { width: 14px; height: 14px; border-radius: 48% 52% 46% 54%; display: inline-block; }
+.chip.b { background: var(--ink); }
+.chip.w { background: var(--sheet); border: 2px solid var(--ink); }
 
 /* setup */
 .setup { display: flex; flex-direction: column; align-items: center; gap: 10px; width: var(--size); max-width: 100%; }
-.about { font-size: 13px; color: var(--muted); text-align: center; max-width: 100%; min-height: 1.4em; margin: 0; }
-.controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; min-height: 48px; }
-.btn { font: inherit; font-size: 16px; font-weight: 600; border: 0; border-radius: 8px; padding: 12px 22px; background: var(--accent); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
-.btn:hover { filter: brightness(1.1); }
-.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.btn .chip { width: 14px; height: 14px; border-radius: 50%; }
-.chip.b { background: var(--black-piece); box-shadow: 0 0 0 1px var(--on-accent); }
-.chip.w { background: var(--white-piece); box-shadow: 0 0 0 1px var(--white-edge); }
+.controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; min-height: 48px; }
+.btn { font: inherit; font-size: 21px; font-weight: 700; border: 2.6px solid var(--ink); border-radius: var(--hand); padding: 8px 22px; background: var(--sheet); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 3px 4px 0 var(--ink); transition: transform .1s, box-shadow .1s; }
+.btn:hover { transform: translate(-1px, -1px) rotate(-1deg); box-shadow: 4px 5px 0 var(--ink); }
+.btn:active { transform: translate(2px, 3px); box-shadow: 1px 1px 0 var(--ink); }
+.btn:focus-visible { outline: 2.6px dashed var(--pen); outline-offset: 5px; }
 @media (max-width: 420px) {
-  .bubble { font-size: 14px; }
+  .bubble { font-size: 18px; }
 }
 </style>
 </head>
@@ -397,9 +382,20 @@ for (let s = 0; s < 64; s++) {
   el.addEventListener("click", () => onSquare(s));
   boardEl.appendChild(el); sqEls.push(el);
 }
+// the grid, drawn by hand: every line bends a little and the frame overshoots its corners
+(function drawGrid() {
+  const j = (k) => (Math.random() - 0.5) * k;
+  const line = (x1, y1, x2, y2, k) => `M${x1 + j(k)} ${y1 + j(k)} Q${(x1 + x2) / 2 + j(k * 2)} ${(y1 + y2) / 2 + j(k * 2)} ${x2 + j(k)} ${y2 + j(k)}`;
+  let inner = "", frame = "";
+  for (let i = 1; i < 8; i++) { inner += line(i * 100, 0, i * 100, 800, 4) + line(0, i * 100, 800, i * 100, 4); }
+  frame = line(-6, 0, 806, 0, 5) + line(800, -6, 800, 806, 5) + line(806, 800, -6, 800, 5) + line(0, 806, 0, -6, 5);
+  boardEl.insertAdjacentHTML("beforeend", `<svg class="grid" viewBox="0 0 800 800" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${inner}" fill="none" stroke="#1b1b1b" stroke-width="1.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <path d="${frame}" fill="none" stroke="#1b1b1b" stroke-width="2.8" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`);
+})();
 function statusText(st) {
   const chip = (p) => `<span class="chip ${p === 1 ? "b" : "w"}"></span>`;
-  if (!started) return "차례를 골라.";
+  if (!started) return "";
   if (st.over) {
     if (!st.winner) return `무승부`;
     return `${chip(st.winner)}${st.winner === human ? "내가 이겼다" : char.short + "가 이겼다"}`;
@@ -424,7 +420,6 @@ function render(animFrom, animTo) {
     el.setAttribute("aria-label", sqName(s) + (p ? (p === 1 ? " 흑" : " 백") : " 빈칸") + (targets.has(s) ? ", 여기로 이동 가능" : ""));
   }
   const thinking = started && !st.over && st.stm !== human;
-  boardEl.classList.toggle("thinking", thinking);
   portraitEl.classList.toggle("thinking", thinking);
   boardEl.classList.toggle("drawn", st.over && !st.winner);
   const sh = statusText(st), se = document.getElementById("status");
