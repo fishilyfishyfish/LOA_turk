@@ -9,12 +9,16 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
-<link rel="preload" href="fonts/Gaegu-Regular.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/Gaegu-Bold.woff2" as="font" type="font/woff2" crossorigin>
+<script>
+// Chrome won't load fonts from file:// pages, so a page opened straight from disk borrows Gaegu from Google Fonts
+if (location.protocol === "file:") document.documentElement.classList.add("from-disk"), document.write('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap">');
+else document.write('<link rel="preload" href="fonts/Gaegu-Regular.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="fonts/Gaegu-Bold.woff2" as="font" type="font/woff2" crossorigin>');
+</script>
 <style>
-/* Gaegu (SIL OFL, fonts/OFL.txt), cut down to Latin, punctuation and the 2,350 common Hangul syllables */
-@font-face { font-family: "Gaegu"; font-weight: 400; font-display: swap; src: url("fonts/Gaegu-Regular.woff2") format("woff2"); }
-@font-face { font-family: "Gaegu"; font-weight: 700; font-display: swap; src: url("fonts/Gaegu-Bold.woff2") format("woff2"); }
+/* Gaegu (SIL OFL, fonts/OFL.txt), cut down to Latin, punctuation and the 2,350 common Hangul syllables.
+   A file:// page can't use these and takes Gaegu from Google Fonts instead (see the script below). */
+@font-face { font-family: "Gaegu Local"; font-weight: 400; font-display: swap; src: url("fonts/Gaegu-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Gaegu Local"; font-weight: 700; font-display: swap; src: url("fonts/Gaegu-Bold.woff2") format("woff2"); }
 /* A sketchbook page: pen lines on paper, like Turk itself.
    Layout: the status line, Turk peeking over the board with its bubble, the board, and the pickers (or one button) */
 :root {
@@ -25,7 +29,10 @@
   --pen: #d8452f;                       /* red pen: selection, moves, captures */
   --marker: rgba(255, 214, 0, .45);     /* highlighter: the last move */
   --hand: 255px 15px 225px 15px / 15px 225px 15px 255px; /* a wobbly hand-drawn box */
-  --font: "Gaegu", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font: "Gaegu Local", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color-scheme: light;
+}
+:root.from-disk { --font: "Gaegu", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   color-scheme: light;
 }
 * { box-sizing: border-box; }
