@@ -1,8 +1,8 @@
 // Turk candidates and Turk's lines.
 // The lines (TALK) are the list loa-turk had before its talk was removed (commit 75777c8^), unchanged
 // except for the study-page easter egg. Every candidate speaks the same lines; they differ in looks.
-// The script's Turk is a real machine, the heir of the 1770 automaton ("안에 사람 숨어 있는 거 아니야"),
-// a file that thinks in seconds, cocky, and full of trivia. Each candidate is one way of drawing that.
+// Turk is cocky and full of trivia; the candidates are cute ways of drawing it. The game uses one
+// (CHARS[0], or ?turk=<id>); candidates.html shows them all side by side.
 // Moods: smug (default), gloat (winning, taking pieces), angry (sulking), shock (caught out).
 // Placeholders: {w} {l} score, {k} streak, {depth} {nodes} search, {d} {p} percent, {n} moves, {g} groups.
 "use strict";
@@ -22,109 +22,113 @@ function portraitSvg(c) {
   return `<svg viewBox="0 0 120 120" aria-hidden="true" focusable="false">${c.base}${g("smug")}${g("gloat")}${g("angry")}${g("shock")}</svg>`;
 }
 
-const TURBAN = (y, main, band, jewel) => `
-  <path d="M33 ${y + 14} C29 ${y - 12} 91 ${y - 12} 87 ${y + 14} C79 ${y + 5} 41 ${y + 5} 33 ${y + 14}Z" fill="${main}"/>
-  <path d="M37 ${y + 7} C49 ${y - 3} 71 ${y - 3} 83 ${y + 7}" stroke="${band}" stroke-width="2.4" fill="none"/>
-  <path d="M60 ${y - 2} C56 ${y - 12} 64 ${y - 18} 61 ${y - 26}" stroke="#c0392b" stroke-width="3.2" fill="none" stroke-linecap="round"/>
-  <circle cx="60" cy="${y}" r="5" fill="${jewel}" stroke="${band}" stroke-width="1.5"/>`;
+// A puffy turban with a jewel and a plume, centred at x = 60.
+const TURBAN = (y, rx, main, band, jewel) => `
+  <path d="M60 ${y - 6} C52 ${y - 20} 60 ${y - 32} 70 ${y - 36} C66 ${y - 24} 72 ${y - 14} 60 ${y - 6}Z" fill="#e0533f"/>
+  <ellipse cx="60" cy="${y}" rx="${rx}" ry="${rx * 0.56}" fill="${main}"/>
+  <path d="M${60 - rx * 0.8} ${y - 3} Q60 ${y + 8} ${60 + rx * 0.8} ${y - 6}" stroke="${band}" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+  <path d="M${60 - rx * 0.92} ${y + 6} Q60 ${y + 17} ${60 + rx * 0.92} ${y + 6}" stroke="${band}" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <circle cx="60" cy="${y + 2}" r="5" fill="${jewel}" stroke="#fff6d8" stroke-width="1.5"/>`;
+
+// Big round eyes, blush and a small mouth; the moods only change the eyes and the mouth.
+// y: eye line, dx: half the gap between the eyes, r: eye size, my: mouth line, ink: eye and mouth colour.
+function cuteMoods({ y, dx, r, my, ink }) {
+  const L = 60 - dx, R = 60 + dx, fill = `fill="${ink}" stroke="none"`;
+  const dotEye = (x, k) => `<circle cx="${x}" cy="${y}" r="${r * k}" ${fill}/><circle cx="${x + r * 0.3}" cy="${y - r * 0.35}" r="${r * 0.28}" fill="#fff" stroke="none"/>`;
+  const lidEye = (x) => `<path d="M${x - r} ${y - 1} A${r} ${r} 0 0 0 ${x + r} ${y - 1}Z" ${fill}/><path d="M${x - r - 1.5} ${y - 1} H${x + r + 1.5}"/>`;
+  const happyEye = (x) => `<path d="M${x - r} ${y + 2} Q${x} ${y - r * 1.4} ${x + r} ${y + 2}"/>`;
+  const wideEye = (x) => `<circle cx="${x}" cy="${y}" r="${r * 1.2}" fill="#fff" stroke="${ink}" stroke-width="2"/><circle cx="${x}" cy="${y}" r="${r * 0.38}" fill="#1b1b1b" stroke="none"/>`;
+  return {
+    // half-lidded eyes and a little cat smirk
+    smug: `${lidEye(L)}${lidEye(R)}<path d="M53 ${my} Q56.5 ${my + 4} 60 ${my} Q63.5 ${my + 4} 67 ${my}"/>`,
+    // ^ ^ eyes, open mouth with a tongue
+    gloat: `${happyEye(L)}${happyEye(R)}<path d="M53 ${my - 1} Q60 ${my + 10} 67 ${my - 1}Z" ${fill}/><ellipse cx="60" cy="${my + 4}" rx="3.2" ry="2" fill="#ff8fa3" stroke="none"/>`,
+    // brows down, pout
+    angry: `${dotEye(L, 0.85)}${dotEye(R, 0.85)}<path d="M${L - r - 2} ${y - r - 6} L${L + r + 1} ${y - r - 2}"/><path d="M${R + r + 2} ${y - r - 6} L${R - r - 1} ${y - r - 2}"/><path d="M55 ${my + 3} Q60 ${my - 2} 65 ${my + 3}"/>`,
+    // wide eyes, o mouth, a sweat drop
+    shock: `${wideEye(L)}${wideEye(R)}<ellipse cx="60" cy="${my + 1}" rx="3" ry="4" ${fill}/><path d="M${R + r + 6} ${y - 10} C${R + r + 3} ${y - 5} ${R + r + 3} ${y - 2} ${R + r + 6} ${y - 2} C${R + r + 9} ${y - 2} ${R + r + 9} ${y - 5} ${R + r + 6} ${y - 10}Z" fill="#7cc8f0" stroke="none"/>`,
+  };
+}
+const BLUSH = (y, dx) => `<ellipse cx="${60 - dx}" cy="${y}" rx="6" ry="3.4" fill="#ff8fa3" opacity=".55"/><ellipse cx="${60 + dx}" cy="${y}" rx="6" ry="3.4" fill="#ff8fa3" opacity=".55"/>`;
+const INK = (c) => `fill="none" stroke="${c}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"`;
 
 const CHARS = [
   {
-    id: "brass",
-    name: "황동 튀르크",
+    id: "chibi",
+    name: "꼬마 튀르크",
     short: "튀르크",
-    about: "1770년 자동인형을 속까지 진짜 기계로 다시 만든 황동 인형. 가슴이 유리라서 안에 톱니만 보인다. \"안에 사람 숨어 있는 거 아니야\"를 몸으로 보여 준다.",
-    stroke: `fill="none" stroke="#3d2a0c" stroke-width="2.8" stroke-linecap="round"`,
+    about: "1770년 자동인형 튀르크를 머리 크게, 몸 작게 줄인 꼬마. 커다란 터번과 쪼끄만 콧수염은 그대로다.",
+    stroke: INK("#3b2414"),
     base: `
-      <path d="M14 120 C18 93 40 86 60 86 C80 86 102 93 106 120Z" fill="#a8792e"/>
-      <circle cx="60" cy="106" r="12" fill="#1f1810" stroke="#e2c27a" stroke-width="2"/>
-      <g fill="none" stroke="#e2c27a" stroke-width="2.2"><circle cx="56" cy="104" r="5"/><path d="M56 97 V99 M56 109 V111 M49 104 H51 M61 104 H63"/><circle cx="65" cy="111" r="3"/></g>
-      <rect x="52" y="76" width="16" height="12" fill="#8a6224"/>
-      <path d="M52 80 H68 M52 84 H68" stroke="#6b4a1a" stroke-width="1.2"/>
-      <ellipse cx="60" cy="58" rx="23" ry="26" fill="#c9a04a"/>
-      <path d="M60 34 V82" stroke="#a8792e" stroke-width="1.2"/>
-      <g fill="#8a6224"><circle cx="40" cy="62" r="1.6"/><circle cx="43" cy="72" r="1.6"/><circle cx="80" cy="62" r="1.6"/><circle cx="77" cy="72" r="1.6"/></g>
-      ${TURBAN(34, "#8e2a2a", "#e2c27a", "#3fb6d8")}
-      <circle cx="50" cy="57" r="5" fill="#16323a"/><circle cx="70" cy="57" r="5" fill="#16323a"/>
-      <circle cx="50" cy="57" r="2.8" fill="#5fe3ff"/><circle cx="70" cy="57" r="2.8" fill="#5fe3ff"/>
-      <path d="M43 72 C49 64 57 66 60 69 C63 66 71 64 77 72 C71 69 64 71 60 71.5 C56 71 49 69 43 72Z" fill="#5a3d12"/>`,
-    moods: {
-      smug: `<path d="M44 49 L55 51"/><path d="M65 50 L76 46"/><path d="M53 78 Q61 81 68 76"/>`,
-      gloat: `<path d="M44 49 L55 50"/><path d="M65 50 L76 49"/><path d="M50 76 Q60 86 70 76 Z" fill="#3d2a0c"/>`,
-      angry: `<path d="M44 46 L56 52"/><path d="M76 46 L64 52"/><path d="M52 80 Q60 75 68 80"/>`,
-      shock: `<path d="M44 47 Q50 42 56 46"/><path d="M64 46 Q70 42 76 47"/><ellipse cx="60" cy="79" rx="3.6" ry="4.6" fill="#3d2a0c" stroke="none"/>`,
-    },
+      <path d="M24 120 C26 102 42 96 60 96 C78 96 94 102 96 120Z" fill="#a8323a"/>
+      <path d="M48 97 L60 110 L72 97" fill="none" stroke="#e0b84f" stroke-width="3"/>
+      <circle cx="60" cy="68" r="31" fill="#f8dcb8"/>
+      <circle cx="29" cy="70" r="5" fill="#f2c89c"/><circle cx="91" cy="70" r="5" fill="#f2c89c"/>
+      ${BLUSH(76, 19)}
+      <path d="M51 79 C54 76 58 76 60 78 C62 76 66 76 69 79 C65 78.5 62 79.5 60 80 C58 79.5 55 78.5 51 79Z" fill="#5a3a1e"/>
+      ${TURBAN(42, 32, "#fbf3df", "#e0b84f", "#3fb6d8")}`,
+    moods: cuteMoods({ y: 65, dx: 12, r: 5.5, my: 85, ink: "#3b2414" }),
   },
   {
-    id: "cabinet",
-    name: "상자 튀르크",
-    short: "튀르크",
-    about: "원조 튀르크의 상자 그 자체가 주인공. 판이 얹힌 나무 상자에 얼굴이 있고, 열린 서랍 안에는 사람 대신 칩이 들어 있다. 사람 숨긴 거 아니냐는 농담을 제일 잘 받는다.",
-    stroke: `fill="none" stroke="#2a1a0c" stroke-width="2.8" stroke-linecap="round"`,
+    id: "kuro",
+    name: "흑돌이",
+    short: "흑돌이",
+    about: "판 위 흑돌 하나가 터번을 쓰고 떠드는 마스코트. 동글동글한데 말은 제일 얄밉다.",
+    stroke: INK("#fff7e8"),
     base: `
-      <rect x="28" y="98" width="7" height="14" fill="#5e3a1c"/><rect x="85" y="98" width="7" height="14" fill="#5e3a1c"/>
-      <rect x="22" y="44" width="76" height="56" rx="3" fill="#8a5a33"/>
-      <rect x="27" y="49" width="66" height="30" rx="2" fill="none" stroke="#6b4325" stroke-width="1.6"/>
-      <path d="M28 36 H92 L98 44 H22 Z" fill="#e9e1cc"/>
-      <path d="M36 36 H44 L43 40 H34Z M52 36 H60 L60 40 H51Z M68 36 H76 L77 40 H68Z M84 36 H92 L94 40 H85Z M30 40 H38 L36 44 H27Z M46 40 H54 L53 44 H44Z M62 40 H70 L71 44 H62Z M78 40 H86 L88 44 H79Z" fill="#6b4325"/>
-      ${TURBAN(24, "#f2efe6", "#c9b98f", "#c0392b")}
-      <rect x="34" y="84" width="52" height="12" rx="2" fill="#2a1a0c"/>
-      <rect x="44" y="86" width="32" height="8" rx="1" fill="#1d8656"/>
-      <path d="M48 86 V83 M53 86 V83 M58 86 V83 M63 86 V83 M68 86 V83 M73 86 V83" stroke="#c9b98f" stroke-width="1.2"/>
-      <rect x="54" y="88" width="12" height="4" fill="#0f4f31"/>
-      <circle cx="47" cy="60" r="5" fill="#f4efe4"/><circle cx="73" cy="60" r="5" fill="#f4efe4"/>
-      <circle cx="47" cy="61" r="2.6" fill="#1b1b1b"/><circle cx="73" cy="61" r="2.6" fill="#1b1b1b"/>`,
-    moods: {
-      smug: `<path d="M40 51 L52 53"/><path d="M68 53 L80 49"/><path d="M53 72 Q61 75 68 70"/>`,
-      gloat: `<path d="M40 52 L52 52"/><path d="M68 52 L80 52"/><path d="M50 69 Q60 79 70 69 Z" fill="#2a1a0c"/>`,
-      angry: `<path d="M40 49 L53 55"/><path d="M80 49 L67 55"/><path d="M52 74 Q60 69 68 74"/>`,
-      shock: `<path d="M40 50 Q46 45 52 49"/><path d="M68 49 Q74 45 80 50"/><ellipse cx="60" cy="72" rx="3.6" ry="4.6" fill="#2a1a0c" stroke="none"/>`,
-    },
+      <defs><radialGradient id="kuro-g" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#5a6268"/><stop offset=".6" stop-color="#1f2326"/><stop offset="1" stop-color="#0b0d0e"/></radialGradient></defs>
+      <circle cx="60" cy="76" r="38" fill="url(#kuro-g)"/>
+      <ellipse cx="46" cy="58" rx="8" ry="4" fill="#fff" opacity=".18" transform="rotate(-25 46 58)"/>
+      ${BLUSH(82, 22)}
+      ${TURBAN(42, 28, "#fbf3df", "#e0b84f", "#e0533f")}`,
+    moods: cuteMoods({ y: 72, dx: 14, r: 6, my: 89, ink: "#fff7e8" }),
   },
   {
-    id: "terminal",
-    name: "단말기 튀르크",
+    id: "cat",
+    name: "냥 튀르크",
     short: "튀르크",
-    about: "터번 쓴 옛날 컴퓨터 단말기. 얼굴과 콧수염이 초록 화면에 그려진다. ENIAC, 딥 블루, 버그 나방 같은 컴퓨터 역사 TMI를 늘어놓는 모습이 제일 자연스럽다.",
-    stroke: `fill="none" stroke="#4cf08f" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"`,
+    about: "터번 쓴 치즈 고양이. 귀가 터번 옆으로 삐져나와 있다. 잘난 척할 때 입이 고양이 입이 된다.",
+    stroke: INK("#3a2414"),
     base: `
-      <path d="M30 104 H90 L98 116 H22 Z" fill="#b9b19a"/>
-      <path d="M34 108 H86 M30 112 H90" stroke="#8f8771" stroke-width="1.5"/>
-      <rect x="48" y="94" width="24" height="10" fill="#a29a83"/>
-      <rect x="20" y="34" width="80" height="62" rx="9" fill="#d8d2bf" stroke="#a29a83" stroke-width="2"/>
-      <rect x="28" y="41" width="64" height="44" rx="7" fill="#0e1a12"/>
-      <circle cx="88" cy="90" r="2" fill="#e0452f"/>
-      <path d="M30 89 H70" stroke="#a29a83" stroke-width="1.5"/>
-      ${TURBAN(26, "#2d4f8a", "#e2c27a", "#e2c27a")}
-      <path d="M44 70 L52 66 L60 69 L68 66 L76 70" fill="none" stroke="#4cf08f" stroke-width="3" stroke-linejoin="round" opacity=".8"/>`,
-    moods: {
-      smug: `<path d="M41 54 H51"/><path d="M69 52 H79"/><path d="M52 77 H62 L68 74"/>`,
-      gloat: `<path d="M41 56 L46 51 L51 56"/><path d="M69 56 L74 51 L79 56"/><path d="M48 74 Q60 84 72 74"/>`,
-      angry: `<g stroke="#ff5a4a"><path d="M41 50 L51 55"/><path d="M79 50 L69 55"/><path d="M50 78 L55 75 L60 78 L65 75 L70 78"/></g>`,
-      shock: `<circle cx="46" cy="54" r="4.5"/><circle cx="74" cy="54" r="4.5"/><circle cx="60" cy="77" r="3.5"/>`,
-    },
+      <path d="M26 58 L30 26 L52 44Z" fill="#f3a952"/><path d="M94 58 L90 26 L68 44Z" fill="#f3a952"/>
+      <path d="M31 50 L33 34 L45 44Z" fill="#ffc9b0"/><path d="M89 50 L87 34 L75 44Z" fill="#ffc9b0"/>
+      <ellipse cx="60" cy="72" rx="37" ry="32" fill="#f3a952"/>
+      <path d="M24 70 H34 M25 78 L34 75 M96 70 H86 M95 78 L86 75" stroke="#c97a2c" stroke-width="2.4" stroke-linecap="round"/>
+      <ellipse cx="60" cy="88" rx="17" ry="12" fill="#fff4e4"/>
+      <path d="M57 80 H63 L60 83Z" fill="#e5707e"/>
+      ${BLUSH(80, 23)}
+      ${TURBAN(42, 28, "#3b6fb6", "#ffd75e", "#ffd75e")}`,
+    moods: cuteMoods({ y: 67, dx: 14, r: 5.5, my: 87, ink: "#3a2414" }),
   },
   {
-    id: "piece",
-    name: "말 튀르크",
+    id: "robot",
+    name: "깡통 튀르크",
     short: "튀르크",
-    about: "LOA 흑돌에 터번과 콧수염을 단 마스코트. 판 위의 말 하나가 직접 떠드는 느낌이라 \"냠\", \"통행료 받아 간다\" 같은 잡는 대사와 제일 잘 붙는다.",
-    stroke: `fill="none" stroke="#f4efe4" stroke-width="3" stroke-linecap="round"`,
+    about: "속이 진짜 기계라는 걸 숨기지 않는 작은 깡통 로봇. 얼굴이 화면이라 표정이 초록색으로 켜진다.",
+    stroke: INK("#7df0c2"),
     base: `
-      <defs><radialGradient id="pc-grad" cx="35%" cy="30%" r="75%"><stop offset="0" stop-color="#5a6268"/><stop offset=".6" stop-color="#1b1f22"/><stop offset="1" stop-color="#0b0d0e"/></radialGradient></defs>
-      <ellipse cx="60" cy="112" rx="34" ry="5" fill="#000" opacity=".18"/>
-      <circle cx="60" cy="72" r="38" fill="url(#pc-grad)"/>
-      <circle cx="60" cy="72" r="38" fill="none" stroke="#000" stroke-width="1.5"/>
-      ${TURBAN(36, "#f2efe6", "#c9b98f", "#c0392b")}
-      <ellipse cx="47" cy="66" rx="7" ry="8" fill="#f4efe4"/><ellipse cx="73" cy="66" rx="7" ry="8" fill="#f4efe4"/>
-      <circle cx="48" cy="68" r="3.4" fill="#111"/><circle cx="72" cy="68" r="3.4" fill="#111"/>
-      <path d="M41 84 C48 77 56 78 60 81 C64 78 72 77 79 84 C72 82 65 83 60 84 C55 83 48 82 41 84Z" fill="#f4efe4"/>`,
-    moods: {
-      smug: `<path d="M39 55 L52 57"/><path d="M68 57 L81 53"/><path d="M54 92 Q61 95 68 90"/>`,
-      gloat: `<path d="M39 56 L52 56"/><path d="M68 56 L81 56"/><path d="M51 89 Q60 99 69 89 Z" fill="#f4efe4"/>`,
-      angry: `<path d="M39 52 L53 59"/><path d="M81 52 L67 59"/><path d="M52 94 Q60 89 68 94"/>`,
-      shock: `<path d="M39 54 Q45 48 52 53"/><path d="M68 53 Q75 48 81 54"/><ellipse cx="60" cy="92" rx="3.6" ry="4.6" fill="#f4efe4" stroke="none"/>`,
-    },
+      <rect x="44" y="102" width="32" height="18" rx="6" fill="#a9b6bf"/>
+      <circle cx="23" cy="76" r="6" fill="#e0b84f"/><circle cx="97" cy="76" r="6" fill="#e0b84f"/>
+      <rect x="25" y="46" width="70" height="58" rx="20" fill="#cfd8de"/>
+      <rect x="33" y="56" width="54" height="40" rx="13" fill="#1e2a33"/>
+      <rect x="37" y="80" width="9" height="5" rx="2.5" fill="#ff8fa3" opacity=".6"/><rect x="74" y="80" width="9" height="5" rx="2.5" fill="#ff8fa3" opacity=".6"/>
+      <circle cx="86" cy="99" r="1.8" fill="#e0533f"/>
+      ${TURBAN(42, 28, "#7b4bb0", "#e0b84f", "#7df0c2")}`,
+    moods: cuteMoods({ y: 72, dx: 12, r: 5, my: 85, ink: "#7df0c2" }),
+  },
+  {
+    id: "mochi",
+    name: "찹쌀 튀르크",
+    short: "튀르크",
+    about: "말랑한 백돌 찹쌀떡에 터번을 얹었다. 화나면 볼이 더 빵빵해 보인다.",
+    stroke: INK("#3b2a22"),
+    base: `
+      <defs><radialGradient id="mochi-g" cx="40%" cy="30%" r="80%"><stop offset="0" stop-color="#ffffff"/><stop offset=".7" stop-color="#f4f1ea"/><stop offset="1" stop-color="#d9d4c8"/></radialGradient></defs>
+      <ellipse cx="60" cy="112" rx="36" ry="5" fill="#000" opacity=".12"/>
+      <path d="M18 98 C14 66 34 48 60 48 C86 48 106 66 102 98 C98 112 22 112 18 98Z" fill="url(#mochi-g)" stroke="#cfc9bb" stroke-width="1.5"/>
+      ${BLUSH(88, 25)}
+      ${TURBAN(46, 26, "#e05a6b", "#ffe28a", "#3fb6d8")}`,
+    moods: cuteMoods({ y: 79, dx: 15, r: 5.5, my: 92, ink: "#3b2a22" }),
   },
 ];
 

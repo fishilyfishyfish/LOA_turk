@@ -38,7 +38,7 @@
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font); }
-.stage { --size: max(260px, min(92vw, calc(100vh - 420px), 560px)); min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+.stage { --size: max(260px, min(92vw, calc(100vh - 330px), 560px)); min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
 .stage.playing { --size: max(260px, min(92vw, calc(100vh - 290px), 620px)); }
 
 /* Turk */
@@ -85,20 +85,9 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); }
 .status { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .status .chip { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
 .status .chip.b { box-shadow: 0 0 0 1px var(--black-edge); }
-.status .lv { font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
 
 /* setup */
 .setup { display: flex; flex-direction: column; align-items: center; gap: 10px; width: var(--size); max-width: 100%; }
-.label { font-size: 12px; font-weight: 700; color: var(--muted); }
-.cast { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
-.cast button { font: inherit; font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 6px 4px 7px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1.2; }
-.cast button .portrait { width: 48px; height: 48px; }
-.cast button[aria-checked="true"] { border-color: var(--ink); color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
-.cast button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.levels { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
-.levels button { font: inherit; font-size: 15px; font-weight: 700; width: 44px; height: 34px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
-.levels button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
-.levels button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .about { font-size: 13px; color: var(--muted); text-align: center; max-width: 100%; min-height: 1.4em; margin: 0; }
 .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; min-height: 48px; }
 .btn { font: inherit; font-size: 16px; font-weight: 600; border: 0; border-radius: 8px; padding: 12px 22px; background: var(--accent); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
@@ -110,8 +99,6 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); }
 @media (max-width: 420px) {
   .portrait { width: 64px; height: 64px; }
   .bubble { font-size: 14px; }
-  .cast button { font-size: 11px; }
-  .cast button .portrait { width: 40px; height: 40px; }
 }
 </style>
 </head>
@@ -130,13 +117,6 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); }
   <div class="board" id="board" role="grid" aria-label="LOA 판"></div>
   <div class="controls">
     <div class="setup" id="pick">
-      <div class="label">튀르크 후보</div>
-      <div class="cast" id="cast" role="radiogroup" aria-label="튀르크 후보"></div>
-      <p class="about" id="cast-about"></p>
-      <div class="levels" id="levels" role="group" aria-label="난이도">
-        <button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3</button><button type="button" data-v="4">4</button><button type="button" data-v="5">5</button>
-      </div>
-      <p class="about" id="level-about"></p>
       <div class="controls">
         <button type="button" class="btn" id="pick-1"><span class="chip b"></span>흑 · 선공</button>
         <button type="button" class="btn" id="pick-2"><span class="chip w"></span>백 · 후공</button>
@@ -151,35 +131,20 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); }
 <script>
 "use strict";
 const THINK_MS = 5000, PONDER_MS = 700;
-// Levels 1-4 play like a person: they read only a few plies, judge with noise, overlook quiet moves,
-// grab captures a little too eagerly, and now and then miss a connection (their own or the opponent's).
-// Level 5 is the full engine: 5 seconds a move, no deliberate mistakes.
-const LEVELS = [
-  { name: "입문", about: "한 수 앞만 본다. 상대가 잇는 수를 자주 놓친다.", wait: [700, 1600],
-    human: { depth: 1, noise: 0.1, blind: 0.3, missWin: 0.25, capBias: 0.03, overlook: 0.25 } },
-  { name: "초급", about: "두 수 앞까지 본다. 가끔 큰 실수를 한다.", wait: [900, 2200],
-    human: { depth: 2, noise: 0.09, blind: 0.25, missWin: 0.18, capBias: 0.04, overlook: 0.25 } },
-  { name: "중급", about: "세 수 앞까지 본다. 큰 실수는 드물지만 작은 실수는 한다.", wait: [1100, 2800],
-    human: { depth: 3, noise: 0.05, blind: 0.1, missWin: 0.07, capBias: 0.02, overlook: 0.15 } },
-  { name: "상급", about: "대여섯 수 앞까지 본다. 실수가 거의 없다.", wait: [1300, 3200],
-    human: { depth: 6, time: 2000, noise: 0.02, blind: 0.02, missWin: 0.01, overlook: 0.05 } },
-  { name: "최강", about: "한 수에 5초 생각하고 실수 없이 둔다. 내 차례에도 미리 생각한다.", wait: null, human: null },
-];
+// Turk always plays at full strength: 5 seconds a move, no deliberate mistakes, and it thinks on my time too.
 const store = {
   get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
 };
-let level = store.get("turk-level", 3);
-if (!(level >= 1 && level <= 5)) level = 3;
-const lv = () => LEVELS[level - 1];
-let char = CHARS.find((c) => c.id === store.get("turk-char", "")) || CHARS[0];
+// one Turk; ?turk=<id> tries another candidate (see candidates.html)
+const char = CHARS.find((c) => c.id === new URLSearchParams(location.search).get("turk")) || CHARS[0];
 let human = 1, started = false; // the game starts once a side is picked
 const R = LoaEngine({ ttBits: 8 });
 const PASS = R.PASS;
 const sqName = (s) => "abcdefgh"[s & 7] + (8 - (s >> 3));
 const sideName = (p) => (p === 1 ? "흑" : "백");
 
-let moves = [], state = null, sel = -1, gameId = 0, waitTimer = 0;
+let moves = [], state = null, sel = -1, gameId = 0;
 
 function replay() {
   R.setStart();
@@ -212,15 +177,13 @@ const WIN = R.WIN, MATE = R.MATE_BOUND;
 let recent = [], slowTimer = 0, chatTimer = 0, winTimer = 0, prevP = null, mateSaid = false, leadSaid = false, doomSaid = false;
 let humanNearSaid = false, engineNearSaid = false, longSaid = false, turnStart = 0;
 let games = 0, turkWins = 0, humanWins = 0, streak = 0; // this visit only
-// below level 5 Turk neither takes 5 seconds nor thinks on my time, so leave out the lines that say it does
-const fits = (x) => level === 5 || !/5초씩|미리 생각/.test(x);
 function setMood(mood) {
   if (portraitEl.dataset.mood === mood) return;
   portraitEl.dataset.mood = mood;
   if (mood === "angry" || mood === "shock") { portraitEl.classList.remove("jolt"); void portraitEl.offsetWidth; portraitEl.classList.add("jolt"); }
 }
 function say(key, vars) {
-  const all = TALK[key].filter(fits);
+  const all = TALK[key];
   const fresh = all.filter((x) => !recent.includes(x)); // don't repeat anything said in the last few lines
   const pool = fresh.length ? fresh : all;
   const line = pool[Math.floor(Math.random() * pool.length)];
@@ -302,7 +265,7 @@ onmessage = function (e) {
   const d = e.data;
   E.setStart();
   for (const m of d.moves) E.play(m);
-  postMessage({ id: d.id, info: d.human ? E.thinkHuman(d.human) : E.think({ time: d.time, keepHistory: true }) });
+  postMessage({ id: d.id, info: E.think({ time: d.time, keepHistory: true }) });
 };`;
 let worker = null, workerBroken = false, busy = null, reqId = 0, localE = null;
 function getWorker() {
@@ -318,15 +281,14 @@ function send(req) {
   busy = req;
   req.t0 = Date.now();
   const w = getWorker();
-  if (w) w.postMessage({ id: req.id, moves: req.moves, time: req.time, human: req.human || null });
+  if (w) w.postMessage({ id: req.id, moves: req.moves, time: req.time });
   else runLocal(req);
 }
 function runLocal(req) { // no worker available: think on the page itself (the page pauses meanwhile)
   if (!localE) { localE = LoaEngine({ ttBits: 18 }); localE.setWeights(TUNED_WEIGHTS); }
   setTimeout(() => {
     localE.setStart(); for (const m of req.moves) localE.play(m);
-    const info = req.human ? localE.thinkHuman(Object.assign({}, req.human, { time: Math.min(req.human.time || 1500, 1500) }))
-                           : localE.think({ time: req.time, keepHistory: true });
+    const info = localE.think({ time: req.time, keepHistory: true });
     done({ id: req.id, info });
   }, 30);
 }
@@ -336,10 +298,7 @@ function done(d) {
   if (req.game === gameId && !req.ponder && !state.over && state.stm !== human) {
     let m = d.info.move;
     if (m !== PASS && !state.legal.includes(m)) m = state.legal[0];
-    // a person takes a moment over a move, even an easy one
-    const w = req.wait, ms = w ? w[0] + Math.random() * (w[1] - w[0]) - (Date.now() - req.t0) : 0;
-    if (ms > 0) waitTimer = setTimeout(() => { if (req.game === gameId) commit(m, d.info); }, ms);
-    else commit(m, d.info);
+    commit(m, d.info);
     return;
   }
   next();
@@ -349,9 +308,8 @@ function done(d) {
 function next() {
   if (!started || busy || state.over) return;            // a ponder slice calls next() again when it ends
   if (!state.legal.length) { commit(PASS); return; }     // no legal move: pass
-  const L = lv();
-  if (state.stm !== human) send({ id: ++reqId, game: gameId, moves: moves.slice(), time: THINK_MS, human: L.human, wait: L.wait, ponder: false });
-  else if (!workerBroken && !L.human) send({ id: ++reqId, game: gameId, moves: moves.slice(), time: PONDER_MS, ponder: true });
+  if (state.stm !== human) send({ id: ++reqId, game: gameId, moves: moves.slice(), time: THINK_MS, ponder: false });
+  else if (!workerBroken) send({ id: ++reqId, game: gameId, moves: moves.slice(), time: PONDER_MS, ponder: true });
   render();
 }
 function commit(m, info) {
@@ -366,7 +324,7 @@ function commit(m, info) {
 // "새 게임": stop, reset the board, and ask for a side again
 function newGame() {
   gameId++;
-  clearTimeout(waitTimer); clearTimeout(slowTimer); clearTimeout(chatTimer); clearTimeout(winTimer);
+  clearTimeout(slowTimer); clearTimeout(chatTimer); clearTimeout(winTimer);
   if (busy && !busy.ponder && worker) { worker.terminate(); worker = null; busy = null; } // don't wait out a 5 s think
   started = false; moves = []; sel = -1;
   state = replay();
@@ -379,7 +337,7 @@ function newGame() {
 }
 function start(side) {
   gameId++;
-  clearTimeout(waitTimer); clearTimeout(winTimer);
+  clearTimeout(winTimer);
   human = side; started = true; moves = []; sel = -1;
   prevP = null; mateSaid = leadSaid = doomSaid = humanNearSaid = engineNearSaid = longSaid = false;
   state = replay();
@@ -404,19 +362,6 @@ function onSquare(s) {
   }
   if (state.b[s] === human && state.legal.some((x) => (x & 63) === s)) { sel = s; render(); }
 }
-function setLevel(n) {
-  level = n; store.set("turk-level", n);
-  for (const b of document.querySelectorAll("#levels button")) b.setAttribute("aria-pressed", String(+b.dataset.v === n));
-  document.getElementById("level-about").textContent = `${n}단계 ${lv().name}: ${lv().about}`;
-}
-function setChar(c, quiet) {
-  char = c; store.set("turk-char", c.id);
-  portraitEl.innerHTML = portraitSvg(c);
-  document.getElementById("who").textContent = c.name;
-  document.getElementById("cast-about").textContent = c.about;
-  for (const b of document.querySelectorAll("#cast button")) b.setAttribute("aria-checked", String(b.dataset.id === c.id));
-  if (!quiet) say("pick");
-}
 
 /* ---------------- drawing ---------------- */
 const boardEl = document.getElementById("board"), sqEls = [];
@@ -428,24 +373,15 @@ for (let s = 0; s < 64; s++) {
   el.addEventListener("click", () => onSquare(s));
   boardEl.appendChild(el); sqEls.push(el);
 }
-const castEl = document.getElementById("cast");
-for (const c of CHARS) {
-  const b = document.createElement("button");
-  b.type = "button"; b.dataset.id = c.id; b.setAttribute("role", "radio");
-  b.innerHTML = `<span class="portrait" data-mood="smug">${portraitSvg(c)}</span><span>${c.name}</span>`;
-  b.addEventListener("click", () => setChar(c));
-  castEl.appendChild(b);
-}
 function statusText(st) {
   const chip = (p) => `<span class="chip ${p === 1 ? "b" : "w"}"></span>`;
-  if (!started) return "튀르크, 난이도, 차례를 골라.";
-  const tag = `<span class="lv">${level}단계 ${lv().name}</span>`;
+  if (!started) return "차례를 골라.";
   if (st.over) {
-    if (!st.winner) return `무승부 ${tag}`;
-    return `${chip(st.winner)}${st.winner === human ? "내가 이겼다" : char.short + "가 이겼다"} ${tag}`;
+    if (!st.winner) return `무승부`;
+    return `${chip(st.winner)}${st.winner === human ? "내가 이겼다" : char.short + "가 이겼다"}`;
   }
-  if (st.stm === human) return `${chip(human)}내 차례 (${sideName(human)}) ${tag}`;
-  return `${chip(3 - human)}${char.short} 차례 ${tag}`;
+  if (st.stm === human) return `${chip(human)}내 차례 (${sideName(human)})`;
+  return `${chip(3 - human)}${char.short} 차례`;
 }
 function render(animFrom, animTo) {
   const st = state;
@@ -484,9 +420,8 @@ function render(animFrom, animTo) {
 document.getElementById("btn-new").addEventListener("click", newGame);
 document.getElementById("pick-1").addEventListener("click", () => start(1));
 document.getElementById("pick-2").addEventListener("click", () => start(2));
-document.getElementById("levels").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setLevel(+b.dataset.v); });
-setLevel(level);
-setChar(char, true);
+portraitEl.innerHTML = portraitSvg(char);
+document.getElementById("who").textContent = char.name;
 say("pick");
 state = replay();
 render();
