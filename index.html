@@ -53,6 +53,10 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
   .portrait.run svg { animation-duration: .2s; }
   .portrait.hop svg { animation: hop .45s ease-out 3; }
   .portrait.poked svg { animation: poked .35s ease-out; }
+  .portrait.doze svg { animation: sway 3s ease-in-out infinite; }
+  .zz span { opacity: 0; animation: zz 2.4s ease-out infinite; }
+  .zz span:nth-child(2) { animation-delay: .5s; } .zz span:nth-child(3) { animation-delay: 1s; }
+  .board.drawin .piece { animation: drawin .3s ease-out backwards; animation-delay: var(--d); }
   .portrait.thinking.walk svg { animation: waddle .3s ease-in-out infinite; } /* scanning the board while thinking */
   .dots i { opacity: 0; animation: dot 1.5s ease-out infinite; }
   .dots i:nth-child(2) { animation-delay: .3s; }
@@ -66,6 +70,9 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 @keyframes poked { 25% { transform: scale(1.1, .86); } 55% { transform: scale(.94, 1.08) rotate(-3deg); } }
 @keyframes dot { 0% { opacity: 0; transform: scale(.3); } 12%, 70% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 @keyframes probe { 0% { opacity: 0; transform: scale(1.6); } 15% { opacity: 1; transform: none; } 60% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes sway { 50% { transform: rotate(5deg); } }
+@keyframes zz { 0% { opacity: 0; transform: translateY(6px); } 25%, 70% { opacity: 1; } 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes drawin { from { opacity: 0; transform: scale(.4) rotate(-20deg); } }
 @keyframes bob { 50% { transform: translateY(-5px); } }
 @keyframes hop { 40% { transform: translateY(-16px) rotate(-4deg); } 70% { transform: translateY(0) scale(1.06, .94); } }
 @keyframes pop { from { transform: scale(.94); opacity: .4; } }
@@ -98,6 +105,16 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 /* thinking: pen dots beside Turk's head, and pencil taps on squares it is looking at */
 .dots { position: absolute; left: calc(var(--x) + 30px); bottom: 54px; display: none; gap: 5px; pointer-events: none; }
 .perch:has(.portrait.thinking) .dots { display: flex; }
+/* dozing: sinks a little, sways, and pen z's float up beside its head */
+.portrait.doze { transform: translateY(16px); transition-duration: 1.6s; }
+.zz { position: absolute; left: calc(var(--x) + 28px); bottom: 26px; display: none; pointer-events: none; font-weight: 700; line-height: 1; }
+.perch:has(.portrait.doze) .zz { display: block; }
+.zz span { position: absolute; left: 0; bottom: 0; }
+.zz span:nth-child(1) { font-size: 14px; } .zz span:nth-child(2) { font-size: 17px; left: 10px; bottom: 11px; } .zz span:nth-child(3) { font-size: 21px; left: 21px; bottom: 24px; }
+/* new game: an eraser rubs the old position out, then the pieces are drawn back in */
+.wipe { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+.wipe path { fill: none; stroke: var(--sheet); stroke-width: 200; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: draw .5s ease-in-out forwards; }
+.wipe.done { transition: opacity .25s; opacity: 0; }
 .dots i { width: 6px; height: 6px; border-radius: 45% 55% 50% 50%; background: var(--ink); }
 .probe { position: absolute; width: 12.5%; height: 12.5%; display: grid; place-items: center; pointer-events: none; z-index: 2; }
 .probe::before { content: ""; width: 20%; height: 20%; border-radius: 45% 55% 52% 48%; background: rgba(27, 27, 27, .55); }
@@ -154,6 +171,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
     <p class="bubble" id="bubble" aria-live="polite"></p>
     <div class="portrait" id="portrait" role="button" tabindex="0" aria-label="튀르크 찌르기"></div>
     <div class="dots" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="zz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div>
   </section>
   <div class="board" id="board" role="grid" aria-label="LOA 판"></div>
   <div class="controls">
@@ -199,8 +217,8 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 </dialog>
 
 <!-- bump ?v= whenever engine.js or characters.js changes: GitHub Pages may otherwise pair this page with a cached old copy -->
-<script src="engine.js?v=3"></script>
-<script src="characters.js?v=3"></script>
+<script src="engine.js?v=4"></script>
+<script src="characters.js?v=4"></script>
 <script>
 "use strict";
 const THINK_MS = 5000, PONDER_MS = 700;
@@ -275,7 +293,7 @@ function place(x, walk) {
   perchEl.style.setProperty("--x", Math.max(42, Math.min(W - 42, x * W)) + "px"); // never past the board's corners
 }
 function wander() {
-  if (Date.now() > actUntil && !portraitEl.classList.contains("thinking") && !portraitEl.classList.contains("sunk") && Math.random() < 0.8) {
+  if (Date.now() > actUntil && !portraitEl.classList.contains("thinking") && !portraitEl.classList.contains("sunk") && !portraitEl.classList.contains("doze") && Math.random() < 0.8) {
     const nx = 0.1 + Math.random() * 0.8;
     if (Math.abs(nx - blobX) > 0.08 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       portraitEl.dataset.dir = nx < blobX ? "l" : "r";
@@ -453,6 +471,7 @@ function commit(m, info) {
 // while Turk thinks it looks around: walks to the column of one of its moves and taps that square with the pencil
 let scanTimer = 0;
 function startScan() {
+  wake();
   stopScan();
   if (reduced()) return;
   const g = gameId, ply = moves.length;
@@ -480,14 +499,15 @@ function newGame() {
   stopScan();
   clearTimeout(slowTimer); clearTimeout(chatTimer); clearTimeout(winTimer);
   if (busy && !busy.ponder && worker) { worker.terminate(); worker = null; busy = null; } // don't wait out a 5 s think
+  const hadMoves = moves.length > 0;
   started = false; moves = []; sel = -1;
-  portraitEl.classList.remove("sunk"); clearLoop();
+  portraitEl.classList.remove("sunk");
   state = replay();
   say("pick");
   document.getElementById("pick").hidden = false;
   document.getElementById("btn-new").hidden = true;
   document.getElementById("stage").classList.remove("playing");
-  render();
+  if (hadMoves && !reduced()) wipeBoard(); else { clearLoop(); render(); }
   document.getElementById("pick-1").focus();
 }
 function start(side) {
@@ -563,7 +583,7 @@ function render(animFrom, animTo) {
     el.classList.toggle("last", s === lf || s === lt);
     el.classList.toggle("sel", s === sel);
     el.classList.toggle("won", st.won.includes(s));
-    let h = p ? `<span class="piece ${p === 1 ? "b" : "w"}" style="rotate:${(s * 47) % 31 - 15}deg"></span>` : "";
+    let h = p ? `<span class="piece ${p === 1 ? "b" : "w"}" style="rotate:${(s * 47) % 31 - 15}deg;--d:${((s & 7) + (s >> 3)) * 28}ms"></span>` : "";
     if (targets.has(s)) h += targets.get(s) ? `<span class="ring"></span>` : `<span class="dot"></span>`;
     if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; }
     el.setAttribute("aria-label", sqName(s) + (p ? (p === 1 ? " 흑" : " 백") : " 빈칸") + (targets.has(s) ? ", 여기로 이동 가능" : ""));
@@ -617,12 +637,40 @@ function drawLoop(squares) {
   svg.innerHTML = `<path pathLength="1" vector-effect="non-scaling-stroke" d="${d}"/>`;
   boardEl.appendChild(svg);
 }
+// new game: a fat eraser stroke zigzags over the board (under the grid), the position is swapped
+// underneath it, then the eraser fades and the starting pieces are drawn in one by one
+function wipeBoard() {
+  const g = gameId, svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "wipe"); svg.setAttribute("viewBox", "0 0 800 800"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = `<path pathLength="1" d="M-40 60 L840 30 L-40 230 L840 200 L-40 400 L840 370 L-40 570 L840 540 L-40 760 L840 740"/>`;
+  boardEl.appendChild(svg);
+  setTimeout(() => {
+    if (g === gameId) { clearLoop(); for (const e of boardEl.querySelectorAll(".trail, .ghost, .probe")) e.remove(); render(); }
+    boardEl.classList.add("drawin");
+    svg.classList.add("done");
+    setTimeout(() => { svg.remove(); boardEl.classList.remove("drawin"); }, 900);
+  }, 520);
+}
+/* ---------------- dozing ---------------- */
+// a minute with nothing happening (not while Turk thinks or sulks) and it nods off
+let idleTimer = 0;
+function armIdle() { clearTimeout(idleTimer); idleTimer = setTimeout(doze, 60000); }
+function doze() {
+  const c = portraitEl.classList;
+  if (c.contains("thinking") || c.contains("sunk") || hiding || document.querySelector("dialog[open]")) { armIdle(); return; }
+  c.add("doze");
+  say("doze");
+}
+function wake() { portraitEl.classList.remove("doze"); armIdle(); }
+// anything I do wakes it quietly (poking it wakes it loudly, see poke)
+for (const ev of ["pointerdown", "keydown"]) addEventListener(ev, (e) => { if (!portraitEl.contains(e.target)) wake(); }, true);
 const clearLoop = () => { for (const e of boardEl.querySelectorAll(".win-loop")) e.remove(); };
 
 /* ---------------- poking Turk ---------------- */
 let pokes = 0, pokeTimer = 0, hiding = false;
 function poke() {
   if (hiding) return;
+  if (portraitEl.classList.contains("doze")) { wake(); act("poked", 400); say("wake"); return; }
   act("poked", 400);
   clearTimeout(pokeTimer);
   pokeTimer = setTimeout(() => { pokes = 0; }, 4000); // a pause and it forgets
@@ -721,6 +769,7 @@ resetBtn.addEventListener("click", () => {
 portraitEl.innerHTML = char.svg;
 place(blobX);
 wanderTimer = setTimeout(wander, 2000);
+armIdle();
 // the first line knows whether we've met, and how long ago
 const away = rec.last ? Math.floor((Date.now() - rec.last) / 86400000) : 0;
 if (!rec.games) say("firstVisit");
