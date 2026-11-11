@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>LOA 튀르크</title>
+<style>
+/* Layout: Turk (portrait + speech bubble) on top, then the status line, the board, and the pickers (or one button) */
+:root {
+  --bg: #e8ebe5;
+  --ink: #16191b;
+  --line: #c6ccc3;
+  --surface: #f7f8f4;
+  --muted: #5a625d;
+  --sq-light: #d5d9cf;
+  --sq-dark: #98a395;
+  --accent: #2346c8;
+  --accent-soft: rgba(35, 70, 200, .16);
+  --on-accent: #ffffff;
+  --win: #1d8656;
+  --black-piece: #1b1f22;
+  --black-edge: #000;
+  --white-piece: #fbfbf7;
+  --white-edge: #8c938b;
+  --portrait-bg: #dfe3d9;
+  --font: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111413; --ink: #e6eae5; --line: #2d3430; --surface: #1c211f; --muted: #8f9890;
+    --sq-light: #586257; --sq-dark: #3a423b; --accent: #7d9bff; --accent-soft: rgba(125, 155, 255, .22);
+    --on-accent: #0c1433; --win: #4cc48c; --black-piece: #0b0d0e; --black-edge: #000;
+    --white-piece: #eef0ea; --white-edge: #9aa298; --portrait-bg: #2a312d; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); }
+.stage { --size: max(260px, min(92vw, calc(100vh - 420px), 560px)); min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 16px; }
+.stage.playing { --size: max(260px, min(92vw, calc(100vh - 290px), 620px)); }
+
+/* Turk */
+.turk { width: var(--size); max-width: 100%; display: flex; align-items: center; gap: 12px; }
+.portrait { flex: none; width: 84px; height: 84px; border-radius: 50%; background: var(--portrait-bg); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+.portrait svg { display: block; width: 100%; height: 100%; }
+.portrait [class^="m-"] { display: none; }
+.portrait[data-mood="smug"] .m-smug, .portrait[data-mood="gloat"] .m-gloat,
+.portrait[data-mood="angry"] .m-angry, .portrait[data-mood="shock"] .m-shock { display: inline; }
+@media (prefers-reduced-motion: no-preference) {
+  .portrait.jolt { animation: jolt .45s ease-out; }
+  .portrait.thinking svg { animation: bob 1.6s ease-in-out infinite; }
+  .bubble.pop { animation: pop .25s ease-out; }
+}
+@keyframes jolt { 20% { transform: translateX(-4px) rotate(-3deg); } 45% { transform: translateX(4px) rotate(3deg); } 70% { transform: translateX(-2px); } }
+@keyframes bob { 50% { transform: translateY(2px); } }
+@keyframes pop { from { transform: scale(.94); opacity: .4; } }
+.speech { flex: 1; min-width: 0; }
+.who { font-size: 12px; font-weight: 700; color: var(--muted); margin: 0 0 4px 12px; }
+.bubble { position: relative; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; font-size: 15px; line-height: 1.45; min-height: 44px; transform-origin: left center; transition: opacity .3s; }
+.bubble::before { content: ""; position: absolute; left: -7px; top: 50%; width: 12px; height: 12px; background: var(--surface); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: translateY(-50%) rotate(45deg); }
+.bubble.stale { opacity: .55; }
+
+/* board */
+.board { width: var(--size); height: var(--size); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--line), 0 12px 34px -18px rgba(0, 0, 0, .55); transition: box-shadow .3s; }
+.board.thinking { box-shadow: 0 0 0 2px var(--accent), 0 12px 34px -18px rgba(0, 0, 0, .55); }
+@media (prefers-reduced-motion: no-preference) { .board.thinking { animation: think 1.4s ease-in-out infinite; } }
+@keyframes think { 50% { box-shadow: 0 0 0 2px transparent, 0 12px 34px -18px rgba(0, 0, 0, .55); } }
+.sq { position: relative; border: 0; padding: 0; margin: 0; background: var(--sq-light); cursor: pointer; display: grid; place-items: center; }
+.sq.dk { background: var(--sq-dark); }
+.sq:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; z-index: 2; }
+.sq.last::after { content: ""; position: absolute; inset: 0; background: var(--accent-soft); pointer-events: none; }
+.sq.sel::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 3px var(--accent); pointer-events: none; }
+.piece { width: 76%; height: 76%; border-radius: 50%; pointer-events: none; position: relative; z-index: 1; transition: opacity .3s; }
+.piece.b { background: radial-gradient(circle at 35% 30%, #4a5157 0%, var(--black-piece) 62%); box-shadow: 0 0 0 1px var(--black-edge), 0 3px 6px -2px rgba(0, 0, 0, .6); }
+.piece.w { background: radial-gradient(circle at 35% 30%, #ffffff 0%, var(--white-piece) 60%, #d9ddd5 100%); box-shadow: 0 0 0 1px var(--white-edge), 0 3px 6px -2px rgba(0, 0, 0, .45); }
+.sq.won .piece { box-shadow: 0 0 0 3px var(--win), 0 0 16px 3px var(--win); }
+.board.drawn .piece { opacity: .45; }
+.dot { width: 26%; height: 26%; border-radius: 50%; background: var(--accent); opacity: .75; pointer-events: none; }
+.ring { position: absolute; inset: 7%; border-radius: 50%; border: 3px solid var(--accent); pointer-events: none; z-index: 2; }
+@media (prefers-reduced-motion: no-preference) { .piece.moving { transition: transform .22s cubic-bezier(.2, .7, .2, 1); } }
+
+.bar { width: var(--size); max-width: 100%; min-height: 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.status { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.status .chip { width: 13px; height: 13px; border-radius: 50%; display: inline-block; }
+.status .chip.b { box-shadow: 0 0 0 1px var(--black-edge); }
+.status .lv { font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; }
+
+/* setup */
+.setup { display: flex; flex-direction: column; align-items: center; gap: 10px; width: var(--size); max-width: 100%; }
+.label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.cast { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+.cast button { font: inherit; font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 6px 4px 7px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; line-height: 1.2; }
+.cast button .portrait { width: 48px; height: 48px; }
+.cast button[aria-checked="true"] { border-color: var(--ink); color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.cast button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.levels { display: flex; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px; }
+.levels button { font: inherit; font-size: 15px; font-weight: 700; width: 44px; height: 34px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
+.levels button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.levels button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.about { font-size: 13px; color: var(--muted); text-align: center; max-width: 100%; min-height: 1.4em; margin: 0; }
+.controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; min-height: 48px; }
+.btn { font: inherit; font-size: 16px; font-weight: 600; border: 0; border-radius: 8px; padding: 12px 22px; background: var(--accent); color: var(--on-accent); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.btn:hover { filter: brightness(1.1); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.btn .chip { width: 14px; height: 14px; border-radius: 50%; }
+.chip.b { background: var(--black-piece); box-shadow: 0 0 0 1px var(--on-accent); }
+.chip.w { background: var(--white-piece); box-shadow: 0 0 0 1px var(--white-edge); }
+@media (max-width: 420px) {
+  .portrait { width: 64px; height: 64px; }
+  .bubble { font-size: 14px; }
+  .cast button { font-size: 11px; }
+  .cast button .portrait { width: 40px; height: 40px; }
+}
+</style>
+</head>
+<body>
+<main class="stage" id="stage">
+  <section class="turk" aria-label="튀르크">
+    <div class="portrait" id="portrait" data-mood="smug"></div>
+    <div class="speech">
+      <div class="who" id="who"></div>
+      <p class="bubble" id="bubble" aria-live="polite"></p>
+    </div>
+  </section>
+  <div class="bar">
+    <div class="status" id="status" aria-live="polite"></div>
+  </div>
+  <div class="board" id="board" role="grid" aria-label="LOA 판"></div>
+  <div class="controls">
+    <div class="setup" id="pick">
+      <div class="label">튀르크 후보</div>
+      <div class="cast" id="cast" role="radiogroup" aria-label="튀르크 후보"></div>
+      <p class="about" id="cast-about"></p>
+      <div class="levels" id="levels" role="group" aria-label="난이도">
+        <button type="button" data-v="1">1</button><button type="button" data-v="2">2</button><button type="button" data-v="3">3</button><button type="button" data-v="4">4</button><button type="button" data-v="5">5</button>
+      </div>
+      <p class="about" id="level-about"></p>
+      <div class="controls">
+        <button type="button" class="btn" id="pick-1"><span class="chip b"></span>흑 · 선공</button>
+        <button type="button" class="btn" id="pick-2"><span class="chip w"></span>백 · 후공</button>
+      </div>
+    </div>
+    <button type="button" class="btn" id="btn-new" hidden>새 게임</button>
+  </div>
+</main>
+
+<script src="engine.js"></script>
+<script src="characters.js"></script>
+<script>
+"use strict";
+const THINK_MS = 5000, PONDER_MS = 700, IDLE_MS = 25000;
+// Levels 1-4 play like a person: they read only a few plies, judge with noise, overlook quiet moves,
+// grab captures a little too eagerly, and now and then miss a connection (their own or the opponent's).
+// Level 5 is the full engine: 5 seconds a move, no deliberate mistakes.
+const LEVELS = [
+  { name: "입문", about: "한 수 앞만 본다. 상대가 잇는 수를 자주 놓친다.", wait: [700, 1600],
+    human: { depth: 1, noise: 0.1, blind: 0.3, missWin: 0.25, capBias: 0.03, overlook: 0.25 } },
+  { name: "초급", about: "두 수 앞까지 본다. 가끔 큰 실수를 한다.", wait: [900, 2200],
+    human: { depth: 2, noise: 0.09, blind: 0.25, missWin: 0.18, capBias: 0.04, overlook: 0.25 } },
+  { name: "중급", about: "세 수 앞까지 본다. 큰 실수는 드물지만 작은 실수는 한다.", wait: [1100, 2800],
+    human: { depth: 3, noise: 0.05, blind: 0.1, missWin: 0.07, capBias: 0.02, overlook: 0.15 } },
+  { name: "상급", about: "대여섯 수 앞까지 본다. 실수가 거의 없다.", wait: [1300, 3200],
+    human: { depth: 6, time: 2000, noise: 0.02, blind: 0.02, missWin: 0.01, overlook: 0.05 } },
+  { name: "최강", about: "한 수에 5초 생각하고 실수 없이 둔다. 내 차례에도 미리 생각한다.", wait: null, human: null },
+];
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+};
+let level = store.get("turk-level", 3);
+if (!(level >= 1 && level <= 5)) level = 3;
+const lv = () => LEVELS[level - 1];
+let char = CHARS.find((c) => c.id === store.get("turk-char", "")) || CHARS[0];
+let human = 1, started = false; // the game starts once a side is picked
+const R = LoaEngine({ ttBits: 8 });
+const PASS = R.PASS;
+const sqName = (s) => "abcdefgh"[s & 7] + (8 - (s >> 3));
+const sideName = (p) => (p === 1 ? "흑" : "백");
+
+let moves = [], state = null, sel = -1, gameId = 0, waitTimer = 0;
+
+function replay() {
+  R.setStart();
+  const counts = new Map(), key = () => R.hash.join(",");
+  counts.set(key(), 1);
+  let over = false, winner = 0, passes = 0;
+  for (const m of moves) {
+    const side = R.stm;
+    R.play(m);
+    if (m === PASS) { if (++passes >= 2) { over = true; break; } }
+    else {
+      passes = 0;
+      const r = R.resultAfter(side, (m & 4096) !== 0);
+      if (r === 1) { over = true; winner = side; break; }
+      if (r === -1) { over = true; winner = 3 - side; break; }
+      if (r === 2) { over = true; break; }
+    }
+    const k = key(), c = (counts.get(k) || 0) + 1; counts.set(k, c);
+    if (c >= 3) { over = true; break; }
+  }
+  const b = Array.from(R.board);
+  const won = [];
+  if (winner) for (let s = 0; s < 64; s++) if (b[s] === winner) won.push(s);
+  return { b, stm: R.stm, over, winner, won, legal: over ? [] : R.legalMoves(), last: moves.length ? moves[moves.length - 1] : -1 };
+}
+
+/* ---------------- trash talk ---------------- */
+const portraitEl = document.getElementById("portrait"), bubbleEl = document.getElementById("bubble");
+const lastPick = {};
+let lastScore = null, saidMate = false, lastEvent = "", idleTimer = 0;
+function setMood(mood, jolt) {
+  portraitEl.dataset.mood = mood;
+  if (jolt) { portraitEl.classList.remove("jolt"); void portraitEl.offsetWidth; portraitEl.classList.add("jolt"); }
+}
+function say(ev, vars) {
+  const pool = char.lines[ev];
+  if (!pool || !pool.length) return;
+  const key = char.id + ":" + ev;
+  let i = Math.floor(Math.random() * pool.length);
+  if (pool.length > 1 && i === lastPick[key]) i = (i + 1 + Math.floor(Math.random() * (pool.length - 1))) % pool.length;
+  lastPick[key] = i;
+  const text = pool[i].replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] != null ? vars[k] : ""));
+  const mood = MOOD_OF[ev] || "smug";
+  setMood(mood, mood === "angry" || mood === "shock");
+  bubbleEl.textContent = text;
+  bubbleEl.classList.remove("stale", "pop"); void bubbleEl.offsetWidth; bubbleEl.classList.add("pop");
+  lastEvent = ev;
+}
+const chance = (p) => Math.random() < p;
+function introEvent() { return level <= 2 ? "introEasy" : level === 5 ? "introHard" : "intro"; }
+// after Turk's own move: the most telling thing about the position wins
+function talkAfterTurk(info, m) {
+  const turk = 3 - human, sc = info ? info.score : 0;
+  if (state.over) { say(state.winner === turk ? "turkWin" : state.winner ? "userWin" : "draw"); return; }
+  if (m === PASS) { say("pass"); return; }
+  const prev = lastScore; lastScore = sc;
+  const mate = Math.abs(sc) < R.WIN && sc >= R.MATE_BOUND ? Math.round((R.WIN - sc - 1) / 2) : 0;
+  if (R.canWinNow(turk)) { say("turkThreat"); return; }
+  if (mate >= 2 && !saidMate && level >= 3) { saidMate = true; say("turkMate", { n: mate }); return; }
+  if (prev !== null && sc - prev >= 300 && sc > 200 && sc < R.MATE_BOUND) { say("userBlunder"); return; }
+  if ((m & 4096) && chance(0.75)) { say("turkCapture"); return; }
+  if (sc > 600 && lastEvent !== "turkWinning" && chance(0.35)) { say("turkWinning"); return; }
+  if (sc < -600 && lastEvent !== "turkLosing" && chance(0.45)) { say("turkLosing"); return; }
+  if (chance(0.25)) { say("chatter"); return; }
+  bubbleEl.classList.add("stale");
+}
+// after my move: Turk reacts while it thinks
+function talkAfterHuman(m) {
+  if (state.over) { say(state.winner === human ? "userWin" : state.winner ? "turkWin" : "draw"); return; }
+  if (m === PASS) { say("userPass"); return; }
+  if (R.canWinNow(human) && chance(0.6)) { say("userThreat"); return; }
+  if ((m & 4096) && chance(0.6)) { say("userCapture"); return; }
+  bubbleEl.classList.add("stale");
+}
+function armIdle() {
+  clearTimeout(idleTimer);
+  if (!started || state.over || state.stm !== human) return;
+  const g = gameId, n = moves.length;
+  idleTimer = setTimeout(() => { if (g === gameId && moves.length === n) say("idle"); }, IDLE_MS);
+}
+
+/* ---------------- engine in a background worker ---------------- */
+const WORKER_SRC = LoaEngine.toString() + `
+const E = LoaEngine({ ttBits: 20 });
+E.setWeights(${JSON.stringify(TUNED_WEIGHTS)});
+onmessage = function (e) {
+  const d = e.data;
+  E.setStart();
+  for (const m of d.moves) E.play(m);
+  postMessage({ id: d.id, info: d.human ? E.thinkHuman(d.human) : E.think({ time: d.time, keepHistory: true }) });
+};`;
+let worker = null, workerBroken = false, busy = null, reqId = 0, localE = null;
+function getWorker() {
+  if (worker || workerBroken) return worker;
+  try {
+    worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })));
+    worker.onmessage = (e) => done(e.data);
+    worker.onerror = () => { worker = null; workerBroken = true; if (busy) runLocal(busy); };
+  } catch (e) { worker = null; workerBroken = true; }
+  return worker;
+}
+function send(req) {
+  busy = req;
+  req.t0 = Date.now();
+  const w = getWorker();
+  if (w) w.postMessage({ id: req.id, moves: req.moves, time: req.time, human: req.human || null });
+  else runLocal(req);
+}
+function runLocal(req) { // no worker available: think on the page itself (the page pauses meanwhile)
+  if (!localE) { localE = LoaEngine({ ttBits: 18 }); localE.setWeights(TUNED_WEIGHTS); }
+  setTimeout(() => {
+    localE.setStart(); for (const m of req.moves) localE.play(m);
+    const info = req.human ? localE.thinkHuman(Object.assign({}, req.human, { time: Math.min(req.human.time || 1500, 1500) }))
+                           : localE.think({ time: req.time, keepHistory: true });
+    done({ id: req.id, info });
+  }, 30);
+}
+function done(d) {
+  if (!busy || d.id !== busy.id) return;
+  const req = busy; busy = null;
+  if (req.game === gameId && !req.ponder && !state.over && state.stm !== human) {
+    let m = d.info.move;
+    if (m !== PASS && !state.legal.includes(m)) m = state.legal[0];
+    // a person takes a moment over a move, even an easy one
+    const w = req.wait, ms = w ? w[0] + Math.random() * (w[1] - w[0]) - (Date.now() - req.t0) : 0;
+    if (ms > 0) waitTimer = setTimeout(() => { if (req.game === gameId) commit(m, d.info); }, ms);
+    else commit(m, d.info);
+    return;
+  }
+  next();
+}
+
+/* ---------------- flow ---------------- */
+function next() {
+  if (!started || busy || state.over) return;            // a ponder slice calls next() again when it ends
+  if (!state.legal.length) { commit(PASS); return; }     // no legal move: pass
+  const L = lv();
+  if (state.stm !== human) send({ id: ++reqId, game: gameId, moves: moves.slice(), time: THINK_MS, human: L.human, wait: L.wait, ponder: false });
+  else if (!workerBroken && !L.human) send({ id: ++reqId, game: gameId, moves: moves.slice(), time: PONDER_MS, ponder: true });
+  render();
+}
+function commit(m, info) {
+  const mover = state.stm;
+  moves.push(m); sel = -1;
+  state = replay();
+  render(m === PASS ? -1 : m & 63, m === PASS ? -1 : (m >> 6) & 63);
+  if (mover === human) talkAfterHuman(m); else talkAfterTurk(info, m);
+  armIdle();
+  next();
+}
+// "새 게임": stop, reset the board, and ask for a side again
+function newGame() {
+  if (started && !state.over && moves.length) say("resign");
+  gameId++;
+  clearTimeout(waitTimer); clearTimeout(idleTimer);
+  if (busy && !busy.ponder && worker) { worker.terminate(); worker = null; busy = null; } // don't wait out a 5 s think
+  started = false; moves = []; sel = -1;
+  state = replay();
+  document.getElementById("pick").hidden = false;
+  document.getElementById("btn-new").hidden = true;
+  document.getElementById("stage").classList.remove("playing");
+  render();
+  document.getElementById("pick-1").focus();
+}
+function start(side) {
+  gameId++;
+  clearTimeout(waitTimer);
+  human = side; started = true; moves = []; sel = -1;
+  lastScore = null; saidMate = false; lastEvent = "";
+  state = replay();
+  document.getElementById("pick").hidden = true;
+  document.getElementById("btn-new").hidden = false;
+  document.getElementById("stage").classList.add("playing");
+  boardEl.setAttribute("aria-label", "LOA 판, 나는 " + sideName(side));
+  say(introEvent(), { lv: lv().name });
+  render();
+  armIdle();
+  next();
+}
+function onSquare(s) {
+  if (!started || state.over || state.stm !== human) return;
+  if (sel >= 0) {
+    const m = state.legal.find((x) => (x & 63) === sel && ((x >> 6) & 63) === s);
+    if (m !== undefined) { commit(m); return; }
+    sel = state.b[s] === human && state.legal.some((x) => (x & 63) === s) ? s : -1;
+    render(); return;
+  }
+  if (state.b[s] === human && state.legal.some((x) => (x & 63) === s)) { sel = s; render(); }
+}
+function setLevel(n, quiet) {
+  level = n; store.set("turk-level", n);
+  for (const b of document.querySelectorAll("#levels button")) b.setAttribute("aria-pressed", String(+b.dataset.v === n));
+  document.getElementById("level-about").textContent = `${n}단계 ${lv().name}: ${lv().about}`;
+  if (!quiet) say(introEvent(), { lv: lv().name });
+}
+function setChar(c, quiet) {
+  char = c; store.set("turk-char", c.id);
+  portraitEl.innerHTML = portraitSvg(c);
+  document.getElementById("who").textContent = c.name;
+  document.getElementById("cast-about").textContent = c.about;
+  for (const b of document.querySelectorAll("#cast button")) b.setAttribute("aria-checked", String(b.dataset.id === c.id));
+  if (!quiet) say(introEvent(), { lv: lv().name });
+}
+
+/* ---------------- drawing ---------------- */
+const boardEl = document.getElementById("board"), sqEls = [];
+for (let s = 0; s < 64; s++) {
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "sq" + (((s >> 3) + (s & 7)) % 2 ? " dk" : "");
+  el.id = "sq-" + sqName(s);
+  el.addEventListener("click", () => onSquare(s));
+  boardEl.appendChild(el); sqEls.push(el);
+}
+const castEl = document.getElementById("cast");
+for (const c of CHARS) {
+  const b = document.createElement("button");
+  b.type = "button"; b.dataset.id = c.id; b.setAttribute("role", "radio");
+  b.innerHTML = `<span class="portrait" data-mood="smug">${portraitSvg(c)}</span><span>${c.name}</span>`;
+  b.addEventListener("click", () => setChar(c));
+  castEl.appendChild(b);
+}
+function statusText(st) {
+  const chip = (p) => `<span class="chip ${p === 1 ? "b" : "w"}"></span>`;
+  if (!started) return "튀르크, 난이도, 차례를 골라.";
+  const tag = `<span class="lv">${level}단계 ${lv().name}</span>`;
+  if (st.over) {
+    if (!st.winner) return `무승부 ${tag}`;
+    return `${chip(st.winner)}${st.winner === human ? "내가 이겼다" : char.short + "가 이겼다"} ${tag}`;
+  }
+  if (st.stm === human) return `${chip(human)}내 차례 (${sideName(human)}) ${tag}`;
+  return `${chip(3 - human)}${char.short} 차례 ${tag}`;
+}
+function render(animFrom, animTo) {
+  const st = state;
+  const targets = new Map();
+  if (sel >= 0) for (const m of st.legal) if ((m & 63) === sel) targets.set((m >> 6) & 63, (m & 4096) !== 0);
+  const real = st.last >= 0 && st.last !== PASS;
+  const lf = real ? st.last & 63 : -1, lt = real ? (st.last >> 6) & 63 : -1;
+  for (let s = 0; s < 64; s++) {
+    const el = sqEls[s], p = st.b[s];
+    el.classList.toggle("last", s === lf || s === lt);
+    el.classList.toggle("sel", s === sel);
+    el.classList.toggle("won", st.won.includes(s));
+    let h = p ? `<span class="piece ${p === 1 ? "b" : "w"}"></span>` : "";
+    if (targets.has(s)) h += targets.get(s) ? `<span class="ring"></span>` : `<span class="dot"></span>`;
+    if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; }
+    el.setAttribute("aria-label", sqName(s) + (p ? (p === 1 ? " 흑" : " 백") : " 빈칸") + (targets.has(s) ? ", 여기로 이동 가능" : ""));
+  }
+  const thinking = started && !st.over && st.stm !== human;
+  boardEl.classList.toggle("thinking", thinking);
+  portraitEl.classList.toggle("thinking", thinking);
+  boardEl.classList.toggle("drawn", st.over && !st.winner);
+  const sh = statusText(st), se = document.getElementById("status");
+  if (se.dataset.h !== sh) { se.innerHTML = sh; se.dataset.h = sh; }
+  if (animFrom >= 0 && animTo >= 0 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const pc = sqEls[animTo].querySelector(".piece");
+    if (pc) {
+      const a = sqEls[animFrom].getBoundingClientRect(), b = sqEls[animTo].getBoundingClientRect();
+      pc.style.transform = `translate(${a.left - b.left}px, ${a.top - b.top}px)`;
+      pc.getBoundingClientRect();
+      pc.classList.add("moving");
+      pc.style.transform = "";
+    }
+  }
+}
+
+document.getElementById("btn-new").addEventListener("click", newGame);
+document.getElementById("pick-1").addEventListener("click", () => start(1));
+document.getElementById("pick-2").addEventListener("click", () => start(2));
+document.getElementById("levels").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setLevel(+b.dataset.v); });
+setLevel(level, true);
+setChar(char, true);
+say("intro");
+state = replay();
+render();
+</script>
+</body>
+</html>
