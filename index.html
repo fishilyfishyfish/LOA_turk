@@ -424,7 +424,7 @@ function commit(m, info) {
   state = replay();
   render(m === PASS ? -1 : m & 63, m === PASS ? -1 : (m >> 6) & 63);
   if (mover === human) humanTalk(m, Date.now() - turnStart); else engineTalk(m, info);
-  if (taken) runTo((m >> 6) & 63); // run over to see the capture
+  if (taken && mover !== human) runTo((m >> 6) & 63); // Turk runs over to the column it captured in
   if (started && !state.over && state.stm === human) armSlowTimer();
   next();
 }
