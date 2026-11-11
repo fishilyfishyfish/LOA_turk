@@ -34,7 +34,11 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
    so they move as one; --w is the perch width and --bw the bubble width, both set by place(). */
 @property --x { syntax: "<length>"; inherits: true; initial-value: 0px; }
 .perch { position: relative; width: var(--size); max-width: 100%; height: 142px; margin-bottom: -12px; --x: 0px; --w: 300px; --bw: 200px; }
-.portrait { position: absolute; bottom: -36px; left: var(--x); width: 74px; height: 104px; margin-left: -37px; z-index: 0; }
+.portrait { position: absolute; bottom: -36px; left: var(--x); width: 74px; height: 104px; margin-left: -37px; z-index: 0; transition: transform .8s ease-in-out; }
+/* acting out the lines: sunk = half hidden behind the board after losing, duck = all the way down for a moment */
+.portrait.sunk { transform: translateY(22px); }
+.portrait.duck { transform: translateY(58px); transition-duration: .25s; }
+.perch:has(.portrait.sunk) .bubble { bottom: 56px; } /* the bubble follows the head down */
 .portrait svg { display: block; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 100%; }
 .portrait .face { transition: transform .3s; }
 .portrait[data-dir="l"] .face { transform: translateX(-3px); }
@@ -43,12 +47,16 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .bubble::before { content: ""; position: absolute; left: clamp(20px, calc(var(--x) - var(--l)), calc(var(--bw) - 20px)); bottom: -10px; width: 17px; height: 17px; margin-left: -8px; background: var(--sheet); border-right: 2.4px solid var(--ink); border-bottom: 2.4px solid var(--ink); transform: rotate(45deg); }
 @media (prefers-reduced-motion: no-preference) {
   .perch.walking { transition: --x 1.8s ease-in-out; }
+  .perch.walking.running { transition: --x .6s ease-in-out; }
+  .portrait.run svg { animation-duration: .2s; }
+  .portrait.hop svg { animation: hop .45s ease-out 3; }
   .portrait.walk svg { animation: waddle .45s ease-in-out infinite; }
   .portrait.thinking svg { animation: bob 1.2s ease-in-out infinite; }
   .bubble.pop { animation: pop .25s ease-out; }
 }
 @keyframes waddle { 25% { transform: rotate(-3deg) translateY(-3px); } 75% { transform: rotate(3deg) translateY(-3px); } }
 @keyframes bob { 50% { transform: translateY(-5px); } }
+@keyframes hop { 40% { transform: translateY(-16px) rotate(-4deg); } 70% { transform: translateY(0) scale(1.06, .94); } }
 @keyframes pop { from { transform: scale(.94); opacity: .4; } }
 .bubble.stale { opacity: .55; }
 
@@ -247,7 +255,7 @@ function place(x, walk) {
   perchEl.style.setProperty("--x", Math.max(42, Math.min(W - 42, x * W)) + "px"); // never past the board's corners
 }
 function wander() {
-  if (!portraitEl.classList.contains("thinking") && Math.random() < 0.8) {
+  if (Date.now() > actUntil && !portraitEl.classList.contains("thinking") && !portraitEl.classList.contains("sunk") && Math.random() < 0.8) {
     const nx = 0.1 + Math.random() * 0.8;
     if (Math.abs(nx - blobX) > 0.08 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       portraitEl.dataset.dir = nx < blobX ? "l" : "r";
@@ -260,6 +268,30 @@ function wander() {
   wanderTimer = setTimeout(wander, 2500 + Math.random() * 4000);
 }
 addEventListener("resize", () => place(blobX));
+// Turk acts out what happens: runs to the column of a capture, ducks, sinks, hops
+let actUntil = 0, actTimer = 0;
+function walkTo(x, ms) {
+  actUntil = Date.now() + ms + 1500; // wandering waits a little after an act
+  if (reduced()) { place(x); return; }
+  portraitEl.dataset.dir = x < blobX ? "l" : "r";
+  perchEl.classList.toggle("running", ms < 1000);
+  portraitEl.classList.add("walk"); portraitEl.classList.toggle("run", ms < 1000);
+  clearTimeout(walkTimer);
+  walkTimer = setTimeout(() => { portraitEl.classList.remove("walk", "run"); perchEl.classList.remove("running"); }, ms);
+  place(x, true);
+}
+const runTo = (s) => walkTo(((s & 7) + 0.5) / 8, 600); // the column the square is in
+function act(cls, ms) {
+  portraitEl.classList.remove(cls); void portraitEl.offsetWidth; portraitEl.classList.add(cls);
+  if (ms) setTimeout(() => portraitEl.classList.remove(cls), ms);
+}
+// pacing back and forth: "기다리다가 판 위를 세 번 왕복했어"
+function pace() {
+  const g = gameId;
+  walkTo(0.12, 600);
+  setTimeout(() => { if (g === gameId) walkTo(0.88, 600); }, 650);
+  setTimeout(() => { if (g === gameId) walkTo(0.5, 600); }, 1300);
+}
 const man = (n) => (n >= 10000 ? Math.round(n / 10000) + "만" : String(n));
 function chat() {
   let r = Math.random() * CHAT.reduce((a, k) => a + TALK[k].length, 0);
@@ -275,11 +307,13 @@ function endTalk() {
   if (st.winner === human) {
     rec.human++; rec.hstreak++; rec.streak = 0; saveRec();
     say(rec.human === 1 ? "humanWinFirst" : "humanWin"); follow = "humanWin2";
+    act("sunk"); // stays half hidden until the next game
   } else {
     const broke = rec.hstreak;
     rec.turk++; rec.streak++; rec.hstreak = 0; saveRec();
     // rub it in, with real numbers from the final position
     say("engineWin", { n: Math.ceil(moves.length / 2), g: R._label(human) });
+    act("hop", 1400);
     follow = broke >= 2 ? "streakBroken" : "engineWin2"; fv = { k: broke };
   }
   const g = gameId;
@@ -295,14 +329,14 @@ function engineTalk(m, info) {
     const n = Math.ceil((WIN - sc) / 2) - 1; // engine moves still needed after this one
     say(mateSaid ? "mateCount" : "mate", { n }); mateSaid = true; prevP = 1; return;
   }
-  if (sc <= -MATE) { if (!doomSaid) { doomSaid = true; say("doomed"); } prevP = 0; return; }
+  if (sc <= -MATE) { if (!doomSaid) { doomSaid = true; say("doomed"); act("duck", 1300); } prevP = 0; return; }
   const p = 1 / (1 + Math.exp(-sc / 300));
   const swing = prevP === null ? 0 : p - prevP; // how much the human's last move changed my winning chances
   if (swing > 0.15 && p > 0.6) say("blunder", { d: Math.round(swing * 100) });
   else if (swing <= -0.1 && Math.random() < 0.7) say("goodMove");
   else if (m & 4096) say("engineCap");
   else if (!engineNearSaid && R._label(3 - human) === 2) { engineNearSaid = true; say("engineNear"); }
-  else if (p > 0.85 && !leadSaid) { leadSaid = true; say("winning", { p: Math.round(p * 100) }); }
+  else if (p > 0.85 && !leadSaid) { leadSaid = true; say("winning", { p: Math.round(p * 100) }); walkTo(0.15 + Math.random() * 0.7, 1800); }
   else {
     const r = Math.random();
     if (info.depth >= 3 && r < 0.25) say("normal", { depth: info.depth, nodes: man(info.nodes) });
@@ -325,7 +359,7 @@ function armSlowTimer() {
   const ply = moves.length, g = gameId;
   const still = () => g === gameId && moves.length === ply && started && !state.over && state.stm === human;
   chatTimer = setTimeout(() => { if (still() && Math.random() < 0.6) chat(); }, 15000);
-  slowTimer = setTimeout(() => { if (still()) say("slow"); }, 40000);
+  slowTimer = setTimeout(() => { if (still()) { say("slow"); pace(); } }, 40000);
 }
 
 /* ---------------- engine in a background worker ---------------- */
@@ -390,6 +424,7 @@ function commit(m, info) {
   state = replay();
   render(m === PASS ? -1 : m & 63, m === PASS ? -1 : (m >> 6) & 63);
   if (mover === human) humanTalk(m, Date.now() - turnStart); else engineTalk(m, info);
+  if (taken) runTo((m >> 6) & 63); // run over to see the capture
   if (started && !state.over && state.stm === human) armSlowTimer();
   next();
 }
@@ -399,6 +434,7 @@ function newGame() {
   clearTimeout(slowTimer); clearTimeout(chatTimer); clearTimeout(winTimer);
   if (busy && !busy.ponder && worker) { worker.terminate(); worker = null; busy = null; } // don't wait out a 5 s think
   started = false; moves = []; sel = -1;
+  portraitEl.classList.remove("sunk");
   state = replay();
   say("pick");
   document.getElementById("pick").hidden = false;
@@ -411,6 +447,7 @@ function start(side) {
   gameId++;
   clearTimeout(winTimer);
   human = side; started = true; moves = []; sel = -1;
+  portraitEl.classList.remove("sunk");
   prevP = null; mateSaid = leadSaid = doomSaid = humanNearSaid = engineNearSaid = longSaid = false;
   state = replay();
   document.getElementById("pick").hidden = true;
