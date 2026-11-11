@@ -150,7 +150,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--font); }
 <script src="characters.js"></script>
 <script>
 "use strict";
-const THINK_MS = 5000, PONDER_MS = 700, IDLE_MS = 25000;
+const THINK_MS = 5000, PONDER_MS = 700;
 // Levels 1-4 play like a person: they read only a few plies, judge with noise, overlook quiet moves,
 // grab captures a little too eagerly, and now and then miss a connection (their own or the opponent's).
 // Level 5 is the full engine: 5 seconds a move, no deliberate mistakes.
@@ -206,59 +206,92 @@ function replay() {
   return { b, stm: R.stm, over, winner, won, legal: over ? [] : R.legalMoves(), last: moves.length ? moves[moves.length - 1] : -1 };
 }
 
-/* ---------------- trash talk ---------------- */
+/* ---------------- trash talk (logic as in loa-turk before 75777c8) ---------------- */
 const portraitEl = document.getElementById("portrait"), bubbleEl = document.getElementById("bubble");
-const lastPick = {};
-let lastScore = null, saidMate = false, lastEvent = "", idleTimer = 0;
-function setMood(mood, jolt) {
+const WIN = R.WIN, MATE = R.MATE_BOUND;
+let recent = [], slowTimer = 0, chatTimer = 0, winTimer = 0, prevP = null, mateSaid = false, leadSaid = false, doomSaid = false;
+let humanNearSaid = false, engineNearSaid = false, longSaid = false, turnStart = 0;
+let games = 0, turkWins = 0, humanWins = 0, streak = 0; // this visit only
+// below level 5 Turk neither takes 5 seconds nor thinks on my time, so leave out the lines that say it does
+const fits = (x) => level === 5 || !/5초씩|미리 생각/.test(x);
+function setMood(mood) {
+  if (portraitEl.dataset.mood === mood) return;
   portraitEl.dataset.mood = mood;
-  if (jolt) { portraitEl.classList.remove("jolt"); void portraitEl.offsetWidth; portraitEl.classList.add("jolt"); }
+  if (mood === "angry" || mood === "shock") { portraitEl.classList.remove("jolt"); void portraitEl.offsetWidth; portraitEl.classList.add("jolt"); }
 }
-function say(ev, vars) {
-  const pool = char.lines[ev];
-  if (!pool || !pool.length) return;
-  const key = char.id + ":" + ev;
-  let i = Math.floor(Math.random() * pool.length);
-  if (pool.length > 1 && i === lastPick[key]) i = (i + 1 + Math.floor(Math.random() * (pool.length - 1))) % pool.length;
-  lastPick[key] = i;
-  const text = pool[i].replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] != null ? vars[k] : ""));
-  const mood = MOOD_OF[ev] || "smug";
-  setMood(mood, mood === "angry" || mood === "shock");
-  bubbleEl.textContent = text;
-  bubbleEl.classList.remove("stale", "pop"); void bubbleEl.offsetWidth; bubbleEl.classList.add("pop");
-  lastEvent = ev;
+function say(key, vars) {
+  const all = TALK[key].filter(fits);
+  const fresh = all.filter((x) => !recent.includes(x)); // don't repeat anything said in the last few lines
+  const pool = fresh.length ? fresh : all;
+  const line = pool[Math.floor(Math.random() * pool.length)];
+  recent = [line].concat(recent).slice(0, 4);
+  setMood(moodOf(key));
+  bubbleEl.textContent = line.replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined ? vars[k] : ""));
+  bubbleEl.classList.remove("pop"); void bubbleEl.offsetWidth; bubbleEl.classList.add("pop");
 }
-const chance = (p) => Math.random() < p;
-function introEvent() { return level <= 2 ? "introEasy" : level === 5 ? "introHard" : "intro"; }
-// after Turk's own move: the most telling thing about the position wins
-function talkAfterTurk(info, m) {
-  const turk = 3 - human, sc = info ? info.score : 0;
-  if (state.over) { say(state.winner === turk ? "turkWin" : state.winner ? "userWin" : "draw"); return; }
-  if (m === PASS) { say("pass"); return; }
-  const prev = lastScore; lastScore = sc;
-  const mate = Math.abs(sc) < R.WIN && sc >= R.MATE_BOUND ? Math.round((R.WIN - sc - 1) / 2) : 0;
-  if (R.canWinNow(turk)) { say("turkThreat"); return; }
-  if (mate >= 2 && !saidMate && level >= 3) { saidMate = true; say("turkMate", { n: mate }); return; }
-  if (prev !== null && sc - prev >= 300 && sc > 200 && sc < R.MATE_BOUND) { say("userBlunder"); return; }
-  if ((m & 4096) && chance(0.75)) { say("turkCapture"); return; }
-  if (sc > 600 && lastEvent !== "turkWinning" && chance(0.35)) { say("turkWinning"); return; }
-  if (sc < -600 && lastEvent !== "turkLosing" && chance(0.45)) { say("turkLosing"); return; }
-  if (chance(0.25)) { say("chatter"); return; }
-  bubbleEl.classList.add("stale");
+const man = (n) => (n >= 10000 ? Math.round(n / 10000) + "만" : String(n));
+function chat() {
+  let r = Math.random() * CHAT.reduce((a, k) => a + TALK[k].length, 0);
+  for (const k of CHAT) { r -= TALK[k].length; if (r < 0) { say(k); return; } }
+  say(CHAT[0]);
 }
-// after my move: Turk reacts while it thinks
-function talkAfterHuman(m) {
-  if (state.over) { say(state.winner === human ? "userWin" : state.winner ? "turkWin" : "draw"); return; }
-  if (m === PASS) { say("userPass"); return; }
-  if (R.canWinNow(human) && chance(0.6)) { say("userThreat"); return; }
-  if ((m & 4096) && chance(0.6)) { say("userCapture"); return; }
-  bubbleEl.classList.add("stale");
+function endTalk() {
+  clearTimeout(slowTimer); clearTimeout(chatTimer);
+  const st = state;
+  games++;
+  if (!st.winner) { streak = 0; say("draw"); return; }
+  let follow;
+  if (st.winner === human) { humanWins++; streak = 0; say("humanWin"); follow = "humanWin2"; }
+  else {
+    turkWins++; streak++;
+    // rub it in, with real numbers from the final position
+    say("engineWin", { n: Math.ceil(moves.length / 2), g: R._label(human) });
+    follow = "engineWin2";
+  }
+  const g = gameId;
+  clearTimeout(winTimer);
+  winTimer = setTimeout(() => { if (g === gameId && state.over) say(follow); }, 3500);
 }
-function armIdle() {
-  clearTimeout(idleTimer);
-  if (!started || state.over || state.stm !== human) return;
-  const g = gameId, n = moves.length;
-  idleTimer = setTimeout(() => { if (g === gameId && moves.length === n) say("idle"); }, IDLE_MS);
+// after the engine's move; info.score is from the engine's side before it moved
+function engineTalk(m, info) {
+  if (state.over) { endTalk(); return; }
+  if (m === PASS) { say("enginePass"); return; }
+  const sc = info.score;
+  if (sc >= MATE) {
+    const n = Math.ceil((WIN - sc) / 2) - 1; // engine moves still needed after this one
+    say(mateSaid ? "mateCount" : "mate", { n }); mateSaid = true; prevP = 1; return;
+  }
+  if (sc <= -MATE) { if (!doomSaid) { doomSaid = true; say("doomed"); } prevP = 0; return; }
+  const p = 1 / (1 + Math.exp(-sc / 300));
+  const swing = prevP === null ? 0 : p - prevP; // how much the human's last move changed my winning chances
+  if (swing > 0.15 && p > 0.6) say("blunder", { d: Math.round(swing * 100) });
+  else if (swing <= -0.1 && Math.random() < 0.7) say("goodMove");
+  else if (m & 4096) say("engineCap");
+  else if (!engineNearSaid && R._label(3 - human) === 2) { engineNearSaid = true; say("engineNear"); }
+  else if (p > 0.85 && !leadSaid) { leadSaid = true; say("winning", { p: Math.round(p * 100) }); }
+  else {
+    const r = Math.random();
+    if (info.depth >= 3 && r < 0.25) say("normal", { depth: info.depth, nodes: man(info.nodes) });
+    else if (r < 0.42) chat();
+  }
+  prevP = p;
+}
+function humanTalk(m, elapsed) {
+  clearTimeout(slowTimer); clearTimeout(chatTimer);
+  if (state.over) { endTalk(); return; }
+  if (m === PASS) say("humanPass");
+  else if (m & 4096) say("humanCap");
+  else if (!humanNearSaid && R._label(human) === 2) { humanNearSaid = true; say("humanNear"); }
+  else if (elapsed < 1500 && Math.random() < 0.3) say("fast");
+  else if (!longSaid && moves.length >= 60) { longSaid = true; say("longGame"); }
+}
+function armSlowTimer() {
+  clearTimeout(slowTimer); clearTimeout(chatTimer);
+  turnStart = Date.now();
+  const ply = moves.length, g = gameId;
+  const still = () => g === gameId && moves.length === ply && started && !state.over && state.stm === human;
+  chatTimer = setTimeout(() => { if (still() && Math.random() < 0.6) chat(); }, 15000);
+  slowTimer = setTimeout(() => { if (still()) say("slow"); }, 40000);
 }
 
 /* ---------------- engine in a background worker ---------------- */
@@ -326,18 +359,18 @@ function commit(m, info) {
   moves.push(m); sel = -1;
   state = replay();
   render(m === PASS ? -1 : m & 63, m === PASS ? -1 : (m >> 6) & 63);
-  if (mover === human) talkAfterHuman(m); else talkAfterTurk(info, m);
-  armIdle();
+  if (mover === human) humanTalk(m, Date.now() - turnStart); else engineTalk(m, info);
+  if (started && !state.over && state.stm === human) armSlowTimer();
   next();
 }
 // "새 게임": stop, reset the board, and ask for a side again
 function newGame() {
-  if (started && !state.over && moves.length) say("resign");
   gameId++;
-  clearTimeout(waitTimer); clearTimeout(idleTimer);
+  clearTimeout(waitTimer); clearTimeout(slowTimer); clearTimeout(chatTimer); clearTimeout(winTimer);
   if (busy && !busy.ponder && worker) { worker.terminate(); worker = null; busy = null; } // don't wait out a 5 s think
   started = false; moves = []; sel = -1;
   state = replay();
+  say("pick");
   document.getElementById("pick").hidden = false;
   document.getElementById("btn-new").hidden = true;
   document.getElementById("stage").classList.remove("playing");
@@ -346,17 +379,19 @@ function newGame() {
 }
 function start(side) {
   gameId++;
-  clearTimeout(waitTimer);
+  clearTimeout(waitTimer); clearTimeout(winTimer);
   human = side; started = true; moves = []; sel = -1;
-  lastScore = null; saidMate = false; lastEvent = "";
+  prevP = null; mateSaid = leadSaid = doomSaid = humanNearSaid = engineNearSaid = longSaid = false;
   state = replay();
   document.getElementById("pick").hidden = true;
   document.getElementById("btn-new").hidden = false;
   document.getElementById("stage").classList.add("playing");
   boardEl.setAttribute("aria-label", "LOA 판, 나는 " + sideName(side));
-  say(introEvent(), { lv: lv().name });
+  if (games > 0 && streak >= 2 && Math.random() < 0.7) say("streak", { k: streak });
+  else if (games > 0 && Math.random() < 0.6) say("rematch", { w: turkWins, l: humanWins });
+  else say(side === 1 ? "startHumanBlack" : "startEngineBlack");
   render();
-  armIdle();
+  if (side === 1) armSlowTimer();
   next();
 }
 function onSquare(s) {
@@ -369,11 +404,10 @@ function onSquare(s) {
   }
   if (state.b[s] === human && state.legal.some((x) => (x & 63) === s)) { sel = s; render(); }
 }
-function setLevel(n, quiet) {
+function setLevel(n) {
   level = n; store.set("turk-level", n);
   for (const b of document.querySelectorAll("#levels button")) b.setAttribute("aria-pressed", String(+b.dataset.v === n));
   document.getElementById("level-about").textContent = `${n}단계 ${lv().name}: ${lv().about}`;
-  if (!quiet) say(introEvent(), { lv: lv().name });
 }
 function setChar(c, quiet) {
   char = c; store.set("turk-char", c.id);
@@ -381,7 +415,7 @@ function setChar(c, quiet) {
   document.getElementById("who").textContent = c.name;
   document.getElementById("cast-about").textContent = c.about;
   for (const b of document.querySelectorAll("#cast button")) b.setAttribute("aria-checked", String(b.dataset.id === c.id));
-  if (!quiet) say(introEvent(), { lv: lv().name });
+  if (!quiet) say("pick");
 }
 
 /* ---------------- drawing ---------------- */
@@ -451,9 +485,9 @@ document.getElementById("btn-new").addEventListener("click", newGame);
 document.getElementById("pick-1").addEventListener("click", () => start(1));
 document.getElementById("pick-2").addEventListener("click", () => start(2));
 document.getElementById("levels").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setLevel(+b.dataset.v); });
-setLevel(level, true);
+setLevel(level);
 setChar(char, true);
-say("intro");
+say("pick");
 state = replay();
 render();
 </script>
