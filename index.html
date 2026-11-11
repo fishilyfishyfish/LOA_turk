@@ -77,6 +77,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .ghost { position: absolute; width: 12.5%; height: 12.5%; display: grid; place-items: center; pointer-events: none; z-index: 2; animation: fade .3s .45s forwards; }
 .ghost svg { position: absolute; z-index: 2; inset: 8%; width: 84%; height: 84%; overflow: visible; }
 .ghost path { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 520; stroke-dashoffset: 520; animation: draw .4s ease-out forwards; } /* 520: a bit over the zigzag's length */
+.ghost.b path { stroke: var(--sheet); } /* on a black piece the scribble is rubbed out white, or it wouldn't show */
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @keyframes erase { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1; } }
 @keyframes smudge { to { opacity: 0; } }
@@ -515,7 +516,7 @@ function hop(from, to) {
 function scribble(s, colour) {
   if (reduced()) return;
   const g = document.createElement("div");
-  g.className = "ghost";
+  g.className = "ghost " + (colour === 1 ? "b" : "w");
   g.style.left = (s & 7) * 12.5 + "%"; g.style.top = (s >> 3) * 12.5 + "%";
   g.innerHTML = `<span class="piece ${colour === 1 ? "b" : "w"}"></span><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M18 30 L82 22 L16 44 L84 38 L18 58 L82 54 L20 74 L80 70"/></svg>`;
   boardEl.appendChild(g);
