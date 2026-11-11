@@ -109,7 +109,8 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .sheet .aside::before { content: "튀르크: "; font-weight: 700; }
 .sheet svg { display: block; width: 100%; max-width: 360px; margin: 6px 0 2px; }
 .sheet .record { margin: 14px 0 0; padding-top: 10px; border-top: 2px dashed var(--ink); font-size: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
-.linkish { font: inherit; font-size: 16px; color: var(--muted); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+/* a real button, big enough for a finger, but quieter than the others */
+.btn.quiet { font-size: 17px; min-height: 40px; padding: 2px 14px; color: var(--muted); border-color: var(--muted); box-shadow: 2px 3px 0 var(--muted); touch-action: manipulation; }
 .sheet form { display: flex; justify-content: flex-end; margin-top: 14px; }
 @media (max-width: 420px) {
   .bubble { font-size: 18px; }
@@ -164,7 +165,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
     <li><b>무승부:</b> 한 수로 둘 다 동시에 이어지거나, 같은 국면이 같은 차례로 세 번 나오면.
       <span class="aside">나랑 비기는 것도 쉽지 않아.</span></li>
   </ol>
-  <div class="record"><span id="record"></span><button type="button" class="linkish" id="btn-reset">전적 지우기</button></div>
+  <div class="record"><span id="record"></span><button type="button" class="btn quiet" id="btn-reset">전적 지우기</button></div>
   <p class="snark" id="reset-snark" aria-live="polite" hidden></p>
   <form method="dialog"><button class="btn small">알겠어</button></form>
 </dialog>
