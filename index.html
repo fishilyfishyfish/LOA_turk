@@ -126,6 +126,8 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .wipe path { fill: none; stroke: var(--sheet); stroke-width: 200; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 1; stroke-dashoffset: 1; animation: draw .5s ease-in-out forwards; }
 .wipe.done { transition: opacity .25s; opacity: 0; }
 .dots i { width: 6px; height: 6px; border-radius: 45% 55% 50% 50%; background: var(--ink); }
+/* replay: a red pen ? or ! beside the move that decided the game */
+.mark { position: absolute; width: 12.5%; height: 12.5%; pointer-events: none; z-index: 4; color: var(--pen); font-weight: 700; font-size: calc(var(--size) / 11); line-height: 1; text-align: right; translate: 30% -32%; rotate: 8deg; text-shadow: 0 0 2px var(--sheet), 0 0 2px var(--sheet), 2px 0 0 var(--sheet), -2px 0 0 var(--sheet), 0 2px 0 var(--sheet), 0 -2px 0 var(--sheet); } /* sits on the square's top-right corner, clear of the piece */
 .ghost { position: absolute; width: 12.5%; height: 12.5%; display: grid; place-items: center; pointer-events: none; z-index: 2; animation: fade .3s .45s forwards; }
 .ghost svg { position: absolute; z-index: 2; inset: 8%; width: 84%; height: 84%; overflow: visible; }
 .ghost path { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 520; stroke-dashoffset: 520; animation: draw .4s ease-out forwards; } /* 520: a bit over the zigzag's length */
@@ -190,6 +192,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
       </div>
     </div>
     <button type="button" class="btn" id="btn-new" hidden>새 게임</button>
+    <button type="button" class="btn" id="btn-replay" hidden>다시 보기</button>
   </div>
 </main>
 
@@ -225,8 +228,8 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 </dialog>
 
 <!-- bump ?v= whenever engine.js or characters.js changes: GitHub Pages may otherwise pair this page with a cached old copy -->
-<script src="engine.js?v=5"></script>
-<script src="characters.js?v=5"></script>
+<script src="engine.js?v=6"></script>
+<script src="characters.js?v=6"></script>
 <script>
 "use strict";
 const THINK_MS = 5000, PONDER_MS = 700;
@@ -371,6 +374,7 @@ function engineTalk(m, info) {
   if (state.over) { endTalk(); return; }
   if (m === PASS) { say("enginePass"); return; }
   const sc = info.score;
+  evalLog.push({ ply: moves.length - 1, p: sc >= MATE ? 1 : sc <= -MATE ? 0 : 1 / (1 + Math.exp(-sc / 300)) }); // for the replay
   if (sc >= MATE) {
     const n = Math.ceil((WIN - sc) / 2) - 1; // engine moves still needed after this one
     say(mateSaid ? "mateCount" : "mate", { n }); mateSaid = true; prevP = 1; return;
@@ -474,14 +478,74 @@ function commit(m, info) {
   if (started && !state.over && state.stm === human) armSlowTimer();
   next();
 }
+/* ---------------- watching the finished game again ---------------- */
+// evalLog: Turk's winning chances at each of its moves. The move of mine that swung them most, in the
+// direction the game ended, is the one that decided it; it gets a red ? (my mistake) or ! (my good move).
+let evalLog = [], replaying = false, replayTimer = 0, fullMoves = [];
+function decisive(winner) {
+  const want = winner === human ? -1 : winner ? 1 : 0;
+  let best = null;
+  for (let i = 1; i < evalLog.length; i++) {
+    const swing = evalLog[i].p - evalLog[i - 1].p, score = want ? want * swing : Math.abs(swing);
+    if (score > 0.12 && (!best || score > best.score)) best = { ply: evalLog[i].ply - 1, good: swing < 0, score };
+  }
+  return best;
+}
+const clearMarks = () => { for (const e of boardEl.querySelectorAll(".mark")) e.remove(); };
+function startReplay() {
+  if (!started || !state.over || !moves.length) return;
+  clearTimeout(winTimer); clearMarks();
+  const g = gameId, winner = state.winner, key = decisive(winner), kind = winner === human ? "Lost" : winner ? "" : "Draw";
+  replaying = true; fullMoves = moves.slice();
+  moves = []; sel = -1; state = replay();
+  loopFor = -1; // the loop is drawn again when the replay reaches the end
+  say("replayStart" + kind);
+  if (reduced()) { clearLoop(); render(); } else { wipeBoard(); render0(); }
+  let i = 0;
+  const step = () => {
+    if (g !== gameId || !replaying) return;
+    if (i >= fullMoves.length) { stopReplay(false, "replayEnd" + kind); return; }
+    const m = fullMoves[i++], real = m !== PASS, to = (m >> 6) & 63;
+    if (real && (m & 4096)) scribble(to, state.b[to]);
+    moves = fullMoves.slice(0, i); state = replay();
+    render(real ? m & 63 : -1, real ? to : -1);
+    let wait = 650;
+    if (key && key.ply === i - 1 && real) { // stop on the move that decided it
+      const d = document.createElement("div");
+      d.className = "mark"; d.textContent = key.good ? "!" : "?"; d.style.left = (to & 7) * 12.5 + "%"; d.style.top = (to >> 3) * 12.5 + "%";
+      boardEl.appendChild(d);
+      say(key.good ? "replayGood" : "replayBlunder");
+      wait = 2600;
+    }
+    replayTimer = setTimeout(step, wait);
+  };
+  replayTimer = setTimeout(step, reduced() ? 400 : 1200);
+}
+// the status line and the button, without touching the board the eraser is still covering
+function render0() {
+  const se = document.getElementById("status"), sh = statusText(state);
+  se.innerHTML = sh; se.dataset.h = sh;
+  const rb = document.getElementById("btn-replay"); rb.hidden = false; rb.textContent = "그만 보기";
+}
+// quiet: no closing line (a new game is starting); otherwise jump to the final position
+function stopReplay(quiet, endKey) {
+  if (!replaying) return;
+  clearTimeout(replayTimer);
+  replaying = false;
+  moves = fullMoves; sel = -1; state = replay();
+  if (quiet) { clearMarks(); return; }
+  render();
+  if (endKey) say(endKey);
+}
 // "새 게임": stop, reset the board, and ask for a side again
 function newGame() {
   gameId++;
   clearTimeout(slowTimer); clearTimeout(chatTimer); clearTimeout(winTimer);
   if (busy && !busy.ponder && worker) { worker.terminate(); worker = null; busy = null; } // don't wait out a 5 s think
+  stopReplay(true);
   const hadMoves = moves.length > 0;
   started = false; moves = []; sel = -1;
-  portraitEl.classList.remove("sunk");
+  portraitEl.classList.remove("sunk"); clearMarks();
   state = replay();
   say("pick");
   document.getElementById("pick").hidden = false;
@@ -495,6 +559,7 @@ function start(side) {
   clearTimeout(winTimer);
   human = side; started = true; moves = []; sel = -1;
   portraitEl.classList.remove("sunk"); clearLoop();
+  evalLog = []; stopReplay(true);
   prevP = null; mateSaid = leadSaid = doomSaid = humanNearSaid = engineNearSaid = longSaid = false;
   state = replay();
   document.getElementById("pick").hidden = true;
@@ -511,6 +576,7 @@ function start(side) {
   next();
 }
 function onSquare(s) {
+  if (replaying) return;
   if (!started || state.over || state.stm !== human) return;
   if (sel >= 0) {
     const m = state.legal.find((x) => (x & 63) === sel && ((x >> 6) & 63) === s);
@@ -556,6 +622,7 @@ for (let s = 0; s < 64; s++) {
 function statusText(st) {
   const chip = (p) => `<span class="chip ${p === 1 ? "b" : "w"}"></span>`;
   if (!started) return "";
+  if (replaying) return `다시 보기 ${moves.length} / ${fullMoves.length}`;
   if (st.over) {
     if (!st.winner) return `무승부`;
     return `${chip(st.winner)}${st.winner === human ? "내가 이겼다" : char.short + "가 이겼다"}`;
@@ -579,7 +646,10 @@ function render(animFrom, animTo) {
     if (el.dataset.h !== h) { el.innerHTML = h; el.dataset.h = h; }
     el.setAttribute("aria-label", sqName(s) + (p ? (p === 1 ? " 흑" : " 백") : " 빈칸") + (targets.has(s) ? ", 여기로 이동 가능" : ""));
   }
-  const thinking = started && !st.over && st.stm !== human;
+  const thinking = started && !st.over && st.stm !== human && !replaying;
+  const rb = document.getElementById("btn-replay");
+  rb.hidden = !(started && (st.over || replaying) && (replaying || moves.length > 0));
+  rb.textContent = replaying ? "그만 보기" : "다시 보기";
   portraitEl.classList.toggle("thinking", thinking);
   boardEl.classList.toggle("drawn", st.over && !st.winner);
   if (st.over && st.winner && loopFor !== gameId) { // once per game, after the last move has landed
@@ -715,6 +785,7 @@ function scribble(s, colour) {
 }
 
 document.getElementById("btn-new").addEventListener("click", newGame);
+document.getElementById("btn-replay").addEventListener("click", () => (replaying ? stopReplay() : startReplay()));
 document.getElementById("pick-1").addEventListener("click", () => start(1));
 document.getElementById("pick-2").addEventListener("click", () => start(2));
 /* ---------------- rules sheet and record ---------------- */

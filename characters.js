@@ -111,6 +111,15 @@ const TALK = {
   pokeBack: ["...아직 화났어.", "다시는 찌르지 마.", "찌른 거 전적에 적어 둘 거야."],
   pokeThinking: ["지금 생각 중이거든.", "쉿. 계산 중이야.", "찌른다고 빨리 안 둬."],
   pokeSunk: ["지금 그럴 기분 아니야.", "건드리지 마. 진 거 생각 중이야."],
+  // watching the finished game again: Start/End by who won (Lost = Turk lost), and one remark at the move that decided it
+  replayStart: ["다시 보자. 어디서 졌는지 알려줄게.", "복습 시간이야. 눈 크게 떠.", "좋아, 처음부터. 내가 이기는 건 스포일러야."],
+  replayStartLost: ["...꼭 다시 봐야 해?", "다시 봐도 운이었어.", "빨리 감기 없어? 없구나."],
+  replayStartDraw: ["다시 보자. 누가 덜 못했는지."],
+  replayBlunder: ["여기야. 이 수에서 끝났어.", "멈춰. 이 수 보여? 이게 패인이야.", "여기서 내 승률이 확 올랐어. 고마웠어.", "이 수에 물음표 그려 뒀어. 빨간 펜으로."],
+  replayGood: ["...이 수는 좋았어. 인정.", "여기서부터 꼬였어. 못 본 걸로 하자.", "이 수에 느낌표 붙여 줬어. 붙이기 싫었는데."],
+  replayEnd: ["끝. 다시 봐도 결과는 같네.", "복습 끝. 다음엔 그 수만 피해 봐.", "두 번 봐도 내가 이겨."],
+  replayEndLost: ["다시 봐도 기분 나쁘네.", "됐지? 이제 그만 봐.", "이 판은 여기까지. 다시 보기 버튼 없앨까."],
+  replayEndDraw: ["다시 봐도 비겼네."],
   // I pick up a piece: Turk comes over to that column and sometimes has a word (Again: picking and putting back)
   peek: ["그거 움직이게?", "거기 말고. ...농담이야. 아마도.", "음, 그거?", "그 말 들면 뒤가 비는데.", "좋아, 그거 움직여 봐. 어디 보자.",
          "그 말이 제일 만만해 보였어?"],
