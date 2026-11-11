@@ -62,8 +62,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 .bubble { --l: clamp(0px, calc(var(--x) - var(--bw) / 2), calc(var(--w) - var(--bw))); position: absolute; left: var(--l); bottom: 78px; margin: 0; width: max-content; max-width: min(300px, 100%); background: var(--sheet); border: 2.4px solid var(--ink); border-radius: var(--hand); padding: 8px 14px; font-size: 19px; line-height: 1.3; transform-origin: calc(var(--x) - var(--l)) bottom; }
 .bubble::before { content: ""; position: absolute; left: clamp(20px, calc(var(--x) - var(--l)), calc(var(--bw) - 20px)); bottom: -10px; width: 17px; height: 17px; margin-left: -8px; background: var(--sheet); border-right: 2.4px solid var(--ink); border-bottom: 2.4px solid var(--ink); transform: rotate(45deg); }
 @media (prefers-reduced-motion: no-preference) {
-  .perch.walking { transition: --x 1.8s ease-in-out; }
-  .perch.walking.running { transition: --x .6s ease-in-out; }
+  .perch.walking { transition: --x var(--walk, 1.8s) ease-in-out; } /* --walk: how long this walk takes, set by walkTo */
   .portrait.run svg { animation-duration: .2s; }
   .portrait.hop svg { animation: hop .45s ease-out 3; }
   .portrait.poked svg { animation: poked .35s ease-out; }
@@ -326,10 +325,10 @@ function walkTo(x, ms) {
   actUntil = Date.now() + ms + 1500; // wandering waits a little after an act
   if (reduced()) { place(x); return; }
   portraitEl.dataset.dir = x < blobX ? "l" : "r";
-  perchEl.classList.toggle("running", ms < 1000);
+  perchEl.style.setProperty("--walk", ms + "ms");
   portraitEl.classList.add("walk"); portraitEl.classList.toggle("run", ms < 1000);
   clearTimeout(walkTimer);
-  walkTimer = setTimeout(() => { portraitEl.classList.remove("walk", "run"); perchEl.classList.remove("running"); }, ms);
+  walkTimer = setTimeout(() => { portraitEl.classList.remove("walk", "run"); perchEl.style.removeProperty("--walk"); }, ms);
   place(x, true);
 }
 const runTo = (s) => walkTo(((s & 7) + 0.5) / 8, 600); // the column the square is in
@@ -561,7 +560,7 @@ function peek(s) {
   picks++;
   const c = portraitEl.classList;
   if (hiding || c.contains("sunk")) return;
-  walkTo(((s & 7) + 0.5) / 8, 900);
+  walkTo(((s & 7) + 0.5) / 8, 2200); // a slow sidle, not a dash
   if (picks === 3) say("peekAgain");
   else if (picks === 1 && Math.random() < 0.35) say("peek");
 }
