@@ -4,10 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>LOA 튀르크</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&display=swap">
+<meta name="theme-color" content="#f7f6f1">
+<meta name="apple-mobile-web-app-title" content="튀르크">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/Gaegu-Regular.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/Gaegu-Bold.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* Gaegu (SIL OFL, fonts/OFL.txt), cut down to Latin, punctuation and the 2,350 common Hangul syllables */
+@font-face { font-family: "Gaegu"; font-weight: 400; font-display: swap; src: url("fonts/Gaegu-Regular.woff2") format("woff2"); }
+@font-face { font-family: "Gaegu"; font-weight: 700; font-display: swap; src: url("fonts/Gaegu-Bold.woff2") format("woff2"); }
 /* A sketchbook page: pen lines on paper, like Turk itself.
    Layout: the status line, Turk peeking over the board with its bubble, the board, and the pickers (or one button) */
 :root {
@@ -765,6 +772,16 @@ resetBtn.addEventListener("click", () => {
   showRecord();
   resetSnark("recordReset"); wiped = true;
 });
+
+/* ---------------- works offline once opened ---------------- */
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready).then(() => caches.open("turk")).then((c) => {
+    // keep this page's scripts (with their current ?v=) for offline, and drop copies with an older ?v=
+    const want = [...document.querySelectorAll("script[src]")].map((s) => new URL(s.src, location.href).href);
+    c.addAll(want);
+    c.keys().then((keys) => { for (const k of keys) if (/\/(engine|characters)\.js\?/.test(k.url) && !want.includes(k.url)) c.delete(k); });
+  }).catch(() => {});
+}
 
 portraitEl.innerHTML = char.svg;
 place(blobX);
