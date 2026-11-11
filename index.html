@@ -70,11 +70,16 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 /* moves, drawn like a doodle: a pencil arc from square to square, the piece hops along it,
    and a captured piece gets scribbled out before the mover lands */
 .trail { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
-.trail path { fill: none; stroke: rgba(27, 27, 27, .45); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw .35s ease-out forwards, fade .8s .9s forwards; }
+.trail path { fill: none; stroke-linecap: round; stroke-dasharray: 1 1; }
+/* drawn from the start square, then rubbed out from the same end, leaving a faint eraser smudge that fades */
+.trail .line { stroke: rgba(27, 27, 27, .45); stroke-width: 2; stroke-dashoffset: 1; animation: draw .35s ease-out forwards, erase .6s .9s ease-in-out forwards; }
+.trail .smudge { stroke: rgba(27, 27, 27, .07); stroke-width: 9; stroke-dashoffset: 1; animation: draw .6s .9s ease-in-out forwards, smudge .5s 1.4s forwards; }
 .ghost { position: absolute; width: 12.5%; height: 12.5%; display: grid; place-items: center; pointer-events: none; z-index: 2; animation: fade .3s .45s forwards; }
 .ghost svg { position: absolute; z-index: 2; inset: 8%; width: 84%; height: 84%; overflow: visible; }
 .ghost path { fill: none; stroke: var(--ink); stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 520; stroke-dashoffset: 520; animation: draw .4s ease-out forwards; } /* 520: a bit over the zigzag's length */
 @keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes erase { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -1; } }
+@keyframes smudge { to { opacity: 0; } }
 @keyframes fade { to { opacity: 0; transform: scale(.85); } }
 
 .bar { width: var(--size); max-width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -501,9 +506,10 @@ function hop(from, to) {
   const mx = (x1 + x2) / 2 + ((y1 - y2) / len) * bend * Math.sign(x2 - x1 || 1), my = (y1 + y2) / 2 - Math.abs((x2 - x1) / len) * bend;
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("class", "trail"); svg.setAttribute("viewBox", "0 0 800 800"); svg.setAttribute("preserveAspectRatio", "none"); svg.setAttribute("aria-hidden", "true");
-  svg.innerHTML = `<path pathLength="1" vector-effect="non-scaling-stroke" d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}"/>`;
+  const d = `M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}`;
+  svg.innerHTML = `<path class="smudge" pathLength="1" vector-effect="non-scaling-stroke" d="${d}"/><path class="line" pathLength="1" vector-effect="non-scaling-stroke" d="${d}"/>`;
   boardEl.appendChild(svg);
-  setTimeout(() => svg.remove(), 1800);
+  setTimeout(() => svg.remove(), 2000);
 }
 // a captured piece is scribbled out with the pen and fades before the mover lands on it
 function scribble(s, colour) {
