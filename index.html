@@ -30,27 +30,24 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
 
 /* Turk: a dome peeking over the board's top edge, wandering left and right; the bubble follows it.
    Its body runs on below the edge, hidden behind the board, so nothing shows underneath when it waddles. */
-.perch { position: relative; width: var(--size); max-width: 100%; height: 142px; margin-bottom: -12px; }
-.portrait { position: absolute; bottom: -36px; left: 20%; width: 74px; height: 104px; margin-left: -37px; z-index: 0; }
+/* --x is Turk's position along the edge. The dome, the bubble and the bubble's tail are all placed from it,
+   so they move as one; --w is the perch width and --bw the bubble width, both set by place(). */
+@property --x { syntax: "<length>"; inherits: true; initial-value: 0px; }
+.perch { position: relative; width: var(--size); max-width: 100%; height: 142px; margin-bottom: -12px; --x: 0px; --w: 300px; --bw: 200px; }
+.portrait { position: absolute; bottom: -36px; left: var(--x); width: 74px; height: 104px; margin-left: -37px; z-index: 0; }
 .portrait svg { display: block; width: 100%; height: 100%; overflow: visible; transform-origin: 50% 100%; }
 .portrait .face { transition: transform .3s; }
 .portrait[data-dir="l"] .face { transform: translateX(-3px); }
 .portrait[data-dir="r"] .face { transform: translateX(3px); }
-.portrait [class^="m-"] { display: none; }
-.portrait[data-mood="smug"] .m-smug, .portrait[data-mood="gloat"] .m-gloat,
-.portrait[data-mood="angry"] .m-angry, .portrait[data-mood="shock"] .m-shock { display: inline; }
-.bubble { position: absolute; left: 0; bottom: 78px; margin: 0; width: max-content; max-width: min(300px, 100%); background: var(--sheet); border: 2.4px solid var(--ink); border-radius: var(--hand); padding: 8px 14px; font-size: 19px; line-height: 1.3; transform-origin: var(--tail, 50%) bottom; }
-.bubble::before { content: ""; position: absolute; left: var(--tail, 50%); bottom: -10px; width: 17px; height: 17px; margin-left: -8px; background: var(--sheet); border-right: 2.4px solid var(--ink); border-bottom: 2.4px solid var(--ink); transform: rotate(45deg); }
+.bubble { --l: clamp(0px, calc(var(--x) - var(--bw) / 2), calc(var(--w) - var(--bw))); position: absolute; left: var(--l); bottom: 78px; margin: 0; width: max-content; max-width: min(300px, 100%); background: var(--sheet); border: 2.4px solid var(--ink); border-radius: var(--hand); padding: 8px 14px; font-size: 19px; line-height: 1.3; transform-origin: calc(var(--x) - var(--l)) bottom; }
+.bubble::before { content: ""; position: absolute; left: clamp(20px, calc(var(--x) - var(--l)), calc(var(--bw) - 20px)); bottom: -10px; width: 17px; height: 17px; margin-left: -8px; background: var(--sheet); border-right: 2.4px solid var(--ink); border-bottom: 2.4px solid var(--ink); transform: rotate(45deg); }
 @media (prefers-reduced-motion: no-preference) {
-  .portrait { transition: left 1.8s ease-in-out; }
-  .bubble { transition: left 1.8s ease-in-out, opacity .3s; }
+  .perch { transition: --x 1.8s ease-in-out; }
   .portrait.walk svg { animation: waddle .45s ease-in-out infinite; }
-  .portrait.jolt svg { animation: jolt .45s ease-out; }
   .portrait.thinking svg { animation: bob 1.2s ease-in-out infinite; }
   .bubble.pop { animation: pop .25s ease-out; }
 }
 @keyframes waddle { 25% { transform: rotate(-3deg) translateY(-3px); } 75% { transform: rotate(3deg) translateY(-3px); } }
-@keyframes jolt { 20% { transform: translateY(-10px) rotate(-3deg); } 45% { transform: translateY(-4px) rotate(3deg); } 70% { transform: translateY(-1px); } }
 @keyframes bob { 50% { transform: translateY(-5px); } }
 @keyframes pop { from { transform: scale(.94); opacity: .4; } }
 .bubble.stale { opacity: .55; }
@@ -97,7 +94,7 @@ body { background: var(--paper); color: var(--ink); font-family: var(--font); fo
   </div>
   <section class="perch" id="perch" aria-label="튀르크">
     <p class="bubble" id="bubble" aria-live="polite"></p>
-    <div class="portrait" id="portrait" data-mood="smug"></div>
+    <div class="portrait" id="portrait"></div>
   </section>
   <div class="board" id="board" role="grid" aria-label="LOA 판"></div>
   <div class="controls">
@@ -161,32 +158,25 @@ const WIN = R.WIN, MATE = R.MATE_BOUND;
 let recent = [], slowTimer = 0, chatTimer = 0, winTimer = 0, prevP = null, mateSaid = false, leadSaid = false, doomSaid = false;
 let humanNearSaid = false, engineNearSaid = false, longSaid = false, turnStart = 0;
 let games = 0, turkWins = 0, humanWins = 0, streak = 0; // this visit only
-function setMood(mood) {
-  if (portraitEl.dataset.mood === mood) return;
-  portraitEl.dataset.mood = mood;
-  if (mood === "angry" || mood === "shock") { portraitEl.classList.remove("jolt"); void portraitEl.offsetWidth; portraitEl.classList.add("jolt"); }
-}
 function say(key, vars) {
   const all = TALK[key];
   const fresh = all.filter((x) => !recent.includes(x)); // don't repeat anything said in the last few lines
   const pool = fresh.length ? fresh : all;
   const line = pool[Math.floor(Math.random() * pool.length)];
   recent = [line].concat(recent).slice(0, 4);
-  setMood(moodOf(key));
   bubbleEl.textContent = line.replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined ? vars[k] : ""));
   bubbleEl.classList.remove("pop"); void bubbleEl.offsetWidth; bubbleEl.classList.add("pop");
   place(blobX);
 }
 // Turk wanders along the top edge of the board; it stands still while thinking
 const perchEl = document.getElementById("perch");
-let blobX = 0.2, wanderTimer = 0;
+let blobX = 0.2, wanderTimer = 0, walkTimer = 0;
 function place(x) {
   blobX = x;
-  const W = perchEl.clientWidth, px = x * W, bw = bubbleEl.offsetWidth;
-  const bl = Math.max(0, Math.min(W - bw, px - bw / 2));
-  portraitEl.style.left = px + "px";
-  bubbleEl.style.left = bl + "px";
-  bubbleEl.style.setProperty("--tail", Math.max(16, Math.min(bw - 16, px - bl)) + "px");
+  const W = perchEl.clientWidth;
+  perchEl.style.setProperty("--w", W + "px");
+  perchEl.style.setProperty("--bw", bubbleEl.offsetWidth + "px");
+  perchEl.style.setProperty("--x", Math.max(42, Math.min(W - 42, x * W)) + "px"); // never past the board's corners
 }
 function wander() {
   if (!portraitEl.classList.contains("thinking") && Math.random() < 0.8) {
@@ -194,12 +184,13 @@ function wander() {
     if (Math.abs(nx - blobX) > 0.08 && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
       portraitEl.dataset.dir = nx < blobX ? "l" : "r";
       portraitEl.classList.add("walk");
+      clearTimeout(walkTimer);
+      walkTimer = setTimeout(() => portraitEl.classList.remove("walk"), 1800);
       place(nx);
     }
   }
   wanderTimer = setTimeout(wander, 2500 + Math.random() * 4000);
 }
-portraitEl.addEventListener("transitionend", (e) => { if (e.propertyName === "left") portraitEl.classList.remove("walk"); });
 addEventListener("resize", () => place(blobX));
 const man = (n) => (n >= 10000 ? Math.round(n / 10000) + "만" : String(n));
 function chat() {
@@ -439,7 +430,7 @@ function render(animFrom, animTo) {
 document.getElementById("btn-new").addEventListener("click", newGame);
 document.getElementById("pick-1").addEventListener("click", () => start(1));
 document.getElementById("pick-2").addEventListener("click", () => start(2));
-portraitEl.innerHTML = portraitSvg(char);
+portraitEl.innerHTML = char.svg;
 place(blobX);
 wanderTimer = setTimeout(wander, 2000);
 say("pick");

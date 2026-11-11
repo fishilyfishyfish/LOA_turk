@@ -1,38 +1,18 @@
 // Turk's looks and lines.
 // The lines (TALK) started from the list loa-turk had before its talk was removed (commit 75777c8^),
 // then were reworked for this Turk: a cocky doodle that walks along the top of the board, full of trivia.
-// Moods: smug (default), gloat (winning, taking pieces), angry (sulking), shock (caught out).
 // Placeholders: {w} {l} score, {k} streak, {depth} {nodes} search, {d} {p} percent, {n} moves, {g} groups.
 "use strict";
 
-const MOOD_OF = {
-  pick: "smug", startHumanBlack: "smug", startEngineBlack: "smug", rematch: "smug", streak: "gloat",
-  normal: "smug", blunder: "gloat", goodMove: "shock", engineCap: "gloat", humanCap: "smug",
-  humanNear: "smug", engineNear: "gloat", winning: "gloat", mate: "gloat", mateCount: "gloat", doomed: "shock",
-  slow: "smug", fast: "smug", longGame: "smug",
-  engineWin: "gloat", engineWin2: "smug", humanWin: "shock", humanWin2: "angry", draw: "angry",
-  enginePass: "angry", humanPass: "gloat",
-};
-const moodOf = (key) => MOOD_OF[key] || "smug"; // small talk (chat*) is smug
-
 // Turk: a plain little dome that peeks over the top edge of the board and wanders along it.
-// The body runs on to the bottom of the box; that part stays hidden behind the board.
-// Only the face changes with the mood.
+// The body runs on to the bottom of the box; that part stays hidden behind the board. One face, always.
 const TURK = {
   name: "튀르크",
   short: "튀르크",
-  body: `<path d="M8 90 L8 60 C6 38 14 8 28 4 C34 2 40 3 44 6 C52 14 57 34 57 60 L57 90 Z" fill="#fdfdfb" stroke="#1b1b1b" stroke-width="2.4" stroke-linejoin="round"/>`,
-  moods: {
-    smug: `<circle cx="25" cy="26" r="2"/><circle cx="37" cy="26" r="2"/><path d="M22 41 C27 40 32 37 40 36"/>`,
-    gloat: `<path d="M22 28 Q25 23 28 28"/><path d="M34 28 Q37 23 40 28"/><path d="M23 36 Q31 45 40 36"/>`,
-    angry: `<path d="M20 21 L28 24"/><path d="M42 21 L34 24"/><circle cx="25" cy="29" r="1.8" fill="#1b1b1b"/><circle cx="37" cy="29" r="1.8" fill="#1b1b1b"/><path d="M24 42 Q31 37 38 42"/>`,
-    shock: `<circle cx="25" cy="26" r="3.4"/><circle cx="37" cy="26" r="3.4"/><ellipse cx="31" cy="40" rx="2.6" ry="3.4"/>`,
-  },
+  svg: `<svg viewBox="0 0 64 90" aria-hidden="true" focusable="false">
+    <path d="M8 90 L8 60 C6 38 14 8 28 4 C34 2 40 3 44 6 C52 14 57 34 57 60 L57 90 Z" fill="#fdfdfb" stroke="#1b1b1b" stroke-width="2.4" stroke-linejoin="round"/>
+    <g class="face" fill="none" stroke="#1b1b1b" stroke-width="2" stroke-linecap="round"><circle cx="25" cy="26" r="2"/><circle cx="37" cy="26" r="2"/><path d="M22 41 C27 40 32 37 40 36"/></g></svg>`,
 };
-function portraitSvg(c) {
-  const g = (k) => `<g class="m-${k}">${c.moods[k]}</g>`;
-  return `<svg viewBox="0 0 64 90" aria-hidden="true" focusable="false">${c.body}<g class="face" fill="none" stroke="#1b1b1b" stroke-width="2" stroke-linecap="round">${g("smug")}${g("gloat")}${g("angry")}${g("shock")}</g></svg>`;
-}
 
 // Small talk topics, picked in proportion to how many lines each has.
 const CHAT = ["chatComputer", "chatCreature", "chatGames", "chatSpace", "chatMath", "chatEngineering", "chatSea", "chatBody", "chatWords",
